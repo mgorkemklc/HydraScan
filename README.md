@@ -38,7 +38,7 @@
 
 1.  **Clone the repository:**
     ```bash
-    git clone [YOUR-GITHUB-REPO-LINK]
+    git clone https://github.com/mgorkemklc/HydraScan.git
     cd hydrascan
     ```
 
