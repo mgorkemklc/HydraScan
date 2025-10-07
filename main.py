@@ -39,7 +39,7 @@ def main():
     Uygulamanın ana akışını yönetir.
     """
     print("----------------------------------------------------")
-    print("  HydraScan Güvenlik Platformu v1.1  ")
+    print("  HydraScan Güvenlik Platformu v1.2  ")
     print("----------------------------------------------------")
     domain_input = input("Lütfen test edilecek alan adını (örn: site.com veya localhost:3000) girin: ")
     internal_ip_range = input("İç ağ taraması için IP aralığı girin (örn: 192.168.1.0/24) [atlamak için Enter'a basın]: ")
