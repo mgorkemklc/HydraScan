@@ -12,7 +12,7 @@ def run_reconnaissance(domain, full_domain, output_dir, image_name):
         "dig_ciktisi.txt": f"dig {domain} ANY",
         "subfinder_ciktisi.txt": f"subfinder -d {domain}",
         # DÜZELTME: Nmap artık tüm portları (-p-) tarayacak.
-        "nmap_ciktisi.txt": f"nmap -sV -T4 -p- {domain}",
+        "nmap_ciktisi.txt": f"nmap -sV -T4 {domain}",
         # Nikto'nun http://localhost:3000 gibi tam adrese ihtiyacı var
         "nikto_ciktisi.txt": f"nikto -h http://{full_domain} -Tuning 1,2,3,4,5"
     }

@@ -11,7 +11,7 @@ def run_web_tests(domain, output_dir, image_name):
 
     commands = {
         # DÜZELTME: Gobuster'a wildcard yanıtları görmezden gelmesi için --wildcard eklendi.
-        "gobuster_ciktisi.txt": f"gobuster dir -u http://{domain} -w {dir_wordlist} -t 50 --wildcard",
+        "gobuster_ciktisi.txt": f"gobuster dir -u http://{domain} -w {dir_wordlist} -t 50",
         
         "sqlmap_ciktisi.txt": f"sqlmap -u http://{domain} --crawl=1 --forms --batch --level=3 --risk=2",
         
