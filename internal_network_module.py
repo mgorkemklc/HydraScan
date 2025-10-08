@@ -25,7 +25,7 @@ def run_internal_tests(ip_range, output_dir, image_name):
         # 3. Adım: Responder'ı 5 dakika (300 saniye) boyunca çalıştırarak
         # LLMNR ve NBT-NS zehirlemesi ile hash yakalamayı dene.
         # Otomasyonda takılı kalmaması için 'timeout' komutu kritik öneme sahiptir.
-        "responder_ciktisi.txt": f"timeout 300 responder -I eth0 -v"
+        "responder_ciktisi.txt": f"timeout 30 responder -I eth0 -v"
     }
 
     # Her bir komutu sırayla çalıştırıyoruz.
