@@ -15,7 +15,7 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
     """
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-pro-latest')
+        model = genai.GenerativeModel('gemini-2.5-flash-latest')
         prompt = f"""
         Sen bir siber güvenlik uzmanısın ve bir sızma testi raporu hazırlıyorsun.
         Aşağıda '{tool_name}' adlı aracın ham çıktısı bulunmaktadır. Bu çıktıyı analiz ederek aşağıdaki formata uygun bir özet çıkar:
@@ -70,7 +70,7 @@ def create_executive_summary(api_key, all_analyses):
     print("[+] Yönetici özeti oluşturuluyor...")
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-pro-latest')
+        model = genai.GenerativeModel('gemini-2.5-flash-latest')
         prompt = f"""
         Sen bir lider sızma testi uzmanısın. Aşağıda, farklı güvenlik araçlarının analiz sonuçları bulunmaktadır. 
         Bu sonuçların tamamını gözden geçirerek, hedef sistemin genel güvenlik durumu hakkında üst yönetime sunulacak, 
