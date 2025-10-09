@@ -5,10 +5,6 @@ import time
 from tqdm import tqdm
 import urllib.parse
 
-# DÜZELTME: API'nin güvenlik ayarlarını daha esnek hale getirmek için Safety Settings eklendi.
-# Bu, araç çıktılarının filtrelere takılma olasılığını azaltır.
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
-
 def analyze_output_with_gemini(api_key, tool_name, file_content):
     """
     Verilen bir aracın çıktısını Gemini API kullanarak analiz eder ve risk seviyesi belirler.
@@ -34,34 +30,11 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
         --- HAM ÇIKTI SONU ---
         """
 
-        # DÜZELTME: API'ye gönderilen içeriğin engellenmemesi için güvenlik ayarları eklendi.
-        response = model.generate_content(
-            prompt,
-            safety_settings={
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-            }
-        )
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        # Hata mesajını daha detaylı yazdırmak için iyileştirme
-        error_detail = "Bilinmeyen bir hata oluştu."
-        if hasattr(e, 'message'):
-            error_detail = e.message
-        else:
-            error_detail = str(e)
-            
-        print(f"[-] Gemini API ile analiz sırasında hata oluştu: {error_detail}")
-        # Hata durumunda Gemini'nin neden bloke ettiğini anlamak için response'u kontrol et
-        try:
-            print(f"[-] Gemini API Yanıt Detayı: {response.prompt_feedback}")
-        except:
-            pass # response nesnesi oluşmadıysa bu adımı atla
-            
-        return f"**Analiz Başarısız Oldu**\n\n**Risk Seviyesi:** Bilgilendirici\n\nHata Detayı: {error_detail}"
-
+        print(f"[-] Gemini API ile analiz sırasında hata oluştu: {e}")
+        return f"**Analiz Başarısız Oldu**\n\n**Risk Seviyesi:** Bilgilendirici\n\nHata Detayı: {str(e)}"
 
 def create_executive_summary(api_key, all_analyses):
     """
@@ -86,16 +59,7 @@ def create_executive_summary(api_key, all_analyses):
         {all_analyses}
         --- BİREYSEL ANALİZLER SONU ---
         """
-        # DÜZELTME: API'ye gönderilen içeriğin engellenmemesi için güvenlik ayarları eklendi.
-        response = model.generate_content(
-            prompt,
-            safety_settings={
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-            }
-        )
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         print(f"[-] Yönetici özeti oluşturulurken hata oluştu: {e}")
@@ -179,4 +143,95 @@ def generate_report(output_dir, domain, api_key):
     chart_url = f"https://quickchart.io/chart?c={urllib.parse.quote(chart_config)}"
     
     print("[+] Gelişmiş HTML raporu oluşturuluyor...")
-    # ... (HTML içeriği aynı kaldığı için buraya eklenmedi) ...
+    
+    # --- BURASI EKSİK OLAN KISIM ---
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>HydraScan Sızma Testi Raporu - {domain}</title>
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; }}
+            .container {{ max-width: 1200px; }}
+            .rapor-header {{ background-color: #343a40; color: white; padding: 40px 20px; text-align: center; border-radius: 8px; margin-bottom: 30px; }}
+            .rapor-header h1 {{ font-weight: 300; }}
+            .rapor-header p {{ font-size: 1.2rem; }}
+            .risk-card {{ border-left: 5px solid; margin-bottom: 20px; }}
+            .risk-kritik {{ border-color: #dc3545; }}
+            .risk-yüksek {{ border-color: #fd7e14; }}
+            .risk-orta {{ border-color: #ffc107; }}
+            .risk-düşük {{ border-color: #007bff; }}
+            .risk-bilgilendirici {{ border-color: #28a745; }}
+            .card-header button {{ text-decoration: none; color: #343a40; width: 100%; text-align: left; font-size: 1.1rem; font-weight: 500; }}
+            pre {{ background-color: #e9ecef; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }}
+            .chart-container {{ text-align: center; margin-bottom: 30px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container mt-5">
+            <div class="rapor-header">
+                <h1>🐉 HydraScan Sızma Testi Raporu</h1>
+                <p><strong>Hedef:</strong> {domain}</p>
+                <p><strong>Rapor Tarihi:</strong> {time.strftime('%Y-%m-%d %H:%M:%S')}</p>
+            </div>
+
+            <h2>Yönetici Özeti</h2>
+            <div class="card mb-4">
+                <div class="card-body">
+                    {executive_summary.replace('n', '<br>')}
+                </div>
+            </div>
+
+            <h2>Bulgu Risk Dağılımı</h2>
+            <div class="card mb-4">
+                <div class="card-body chart-container">
+                    <img src="{chart_url}" alt="Bulgu Risk Dağılımı Grafiği">
+                </div>
+            </div>
+
+            <h2>Teknik Bulgular</h2>
+            <div id="accordion">
+    """
+
+    # Analiz sonuçlarını HTML'e ekle
+    for i, (tool_name, analysis) in enumerate(analysis_results.items()):
+        risk_level = parse_risk_level(analysis)
+        html_content += f"""
+                <div class="card risk-card risk-{risk_level}">
+                    <div class="card-header" id="heading{i}">
+                        <h5 class="mb-0">
+                            <button class="btn btn-link" data-toggle="collapse" data-target="#collapse{i}" aria-expanded="true" aria-controls="collapse{i}">
+                                [{risk_level.upper()}] - {tool_name} Analizi
+                            </button>
+                        </h5>
+                    </div>
+                    <div id="collapse{i}" class="collapse {'show' if i == 0 else ''}" aria-labelledby="heading{i}" data-parent="#accordion">
+                        <div class="card-body">
+                            {analysis.replace('n', '<br>')}
+                            <hr>
+                            <h5>Ham Çıktı:</h5>
+                            <pre><code>{raw_outputs[tool_name]}</code></pre>
+                        </div>
+                    </div>
+                </div>
+        """
+
+    html_content += """
+            </div>
+        </div>
+        <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    </body>
+    </html>
+    """
+
+    try:
+        with open(report_file_path, "w", encoding='utf-8') as f:
+            f.write(html_content)
+        print(f"\n[+] Rapor başarıyla '{report_file_path}' dosyasına kaydedildi.")
+    except Exception as e:
+        print(f"[-] Rapor dosyası yazılırken bir hata oluştu: {e}")
