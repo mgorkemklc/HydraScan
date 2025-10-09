@@ -1,5 +1,6 @@
 import os
 import report_module
+import sys
 
 def main():
     """
@@ -10,9 +11,14 @@ def main():
     print("  HydraScan - Raporlama Modülü Test Aracı")
     print("----------------------------------------------------")
     
-    # Kullanıcıdan mevcut bir rapor klasörünün yolunu al
-    # Örnek: pentest_raporu_www_mgorkemkilic_com_20251009-182309
-    output_dir = input("Lütfen analiz edilecek mevcut rapor klasörünün adını girin: ")
+    # Komut satırı argümanından klasör adını al
+    if len(sys.argv) > 1:
+        output_dir = sys.argv[1]
+        print(f"[i] Komut satırından '{output_dir}' klasörü seçildi.")
+    else:
+        # Kullanıcıdan mevcut bir rapor klasörünün yolunu al
+        # Örnek: pentest_raporu_www_mgorkemkilic_com_20251009-182309
+        output_dir = input("Lütfen analiz edilecek mevcut rapor klasörünün adını girin: ")
 
     if not os.path.isdir(output_dir):
         print(f"[-] Hata: '{output_dir}' adında bir klasör bulunamadı.")
@@ -42,3 +48,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
