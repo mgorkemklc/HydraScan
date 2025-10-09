@@ -5,13 +5,17 @@ import time
 from tqdm import tqdm
 import urllib.parse
 
+# DÜZELTME: API'nin güvenlik ayarlarını daha esnek hale getirmek için Safety Settings eklendi.
+# Bu, araç çıktılarının filtrelere takılma olasılığını azaltır.
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
 def analyze_output_with_gemini(api_key, tool_name, file_content):
     """
     Verilen bir aracın çıktısını Gemini API kullanarak analiz eder ve risk seviyesi belirler.
     """
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.5-pro-latest')
         prompt = f"""
         Sen bir siber güvenlik uzmanısın ve bir sızma testi raporu hazırlıyorsun.
         Aşağıda '{tool_name}' adlı aracın ham çıktısı bulunmaktadır. Bu çıktıyı analiz ederek aşağıdaki formata uygun bir özet çıkar:
@@ -30,11 +34,34 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
         --- HAM ÇIKTI SONU ---
         """
 
-        response = model.generate_content(prompt)
+        # DÜZELTME: API'ye gönderilen içeriğin engellenmemesi için güvenlik ayarları eklendi.
+        response = model.generate_content(
+            prompt,
+            safety_settings={
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+        )
         return response.text
     except Exception as e:
-        print(f"[-] Gemini API ile analiz sırasında hata oluştu: {e}")
-        return f"**Analiz Başarısız Oldu**\n\n**Risk Seviyesi:** Bilgilendirici\n\nHata Detayı: {str(e)}"
+        # Hata mesajını daha detaylı yazdırmak için iyileştirme
+        error_detail = "Bilinmeyen bir hata oluştu."
+        if hasattr(e, 'message'):
+            error_detail = e.message
+        else:
+            error_detail = str(e)
+            
+        print(f"[-] Gemini API ile analiz sırasında hata oluştu: {error_detail}")
+        # Hata durumunda Gemini'nin neden bloke ettiğini anlamak için response'u kontrol et
+        try:
+            print(f"[-] Gemini API Yanıt Detayı: {response.prompt_feedback}")
+        except:
+            pass # response nesnesi oluşmadıysa bu adımı atla
+            
+        return f"**Analiz Başarısız Oldu**\n\n**Risk Seviyesi:** Bilgilendirici\n\nHata Detayı: {error_detail}"
+
 
 def create_executive_summary(api_key, all_analyses):
     """
@@ -43,7 +70,7 @@ def create_executive_summary(api_key, all_analyses):
     print("[+] Yönetici özeti oluşturuluyor...")
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.5-pro-latest')
         prompt = f"""
         Sen bir lider sızma testi uzmanısın. Aşağıda, farklı güvenlik araçlarının analiz sonuçları bulunmaktadır. 
         Bu sonuçların tamamını gözden geçirerek, hedef sistemin genel güvenlik durumu hakkında üst yönetime sunulacak, 
@@ -59,7 +86,16 @@ def create_executive_summary(api_key, all_analyses):
         {all_analyses}
         --- BİREYSEL ANALİZLER SONU ---
         """
-        response = model.generate_content(prompt)
+        # DÜZELTME: API'ye gönderilen içeriğin engellenmemesi için güvenlik ayarları eklendi.
+        response = model.generate_content(
+            prompt,
+            safety_settings={
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+        )
         return response.text
     except Exception as e:
         print(f"[-] Yönetici özeti oluşturulurken hata oluştu: {e}")
