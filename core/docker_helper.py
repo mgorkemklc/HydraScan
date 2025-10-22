@@ -1,5 +1,7 @@
 import subprocess
 import os
+import logging
+import tempfile # Geçici dosya oluşturmak için
 
 def build_custom_image():
     """
@@ -65,14 +67,21 @@ ENV PATH="/root/go/bin:${PATH}"
     print(f"[+] '{image_name}' imajı hazır ve güncel.")
     return image_name
 
-def run_command_in_docker(command, output_file_path, image_name, extra_docker_args=None):
+def run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name, extra_docker_args=None):
     """
-    Verilen bir komutu, belirtilen Docker imajı içinde çalıştırır ve çıktısını dosyaya yazar.
+    Verilen komutu Docker içinde çalıştırır.
+    Çıktıyı alır, bir geçici dosyaya yazar, S3'e yükler ve geçici dosyayı siler.
+    s3_key: S3'e hangi isimle kaydedileceği (örn: media/scan_outputs/1/nmap_ciktisi.txt)
     """
-    output_dir = os.path.dirname(output_file_path)
+    
+    # Çıktıyı yazmak için güvenli bir geçici dosya oluştur
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as temp_output:
+        temp_file_path = temp_output.name
+        output_dir = os.path.dirname(temp_file_path) # Geçici dosyanın dizini
     
     base_docker_command = [
         "docker", "run", "--rm", "--network=host",
+        # Geçici dosyanın olduğu dizini Docker'a bağlıyoruz
         "-v", f"{os.path.abspath(output_dir)}:/output"
     ]
 
@@ -83,7 +92,8 @@ def run_command_in_docker(command, output_file_path, image_name, extra_docker_ar
         image_name, "/bin/bash", "-c", command
     ]
     
-    print(f"\n[+] Komut çalıştırılıyor: '{command.split()[0]}'")
+    logging.info(f"\n[+] Komut çalıştırılıyor: '{command.split()[0]}'")
+    full_output = ""
     
     try:
         process = subprocess.run(
@@ -95,14 +105,25 @@ def run_command_in_docker(command, output_file_path, image_name, extra_docker_ar
             errors='ignore'
         )
         full_output = process.stdout + "\n" + process.stderr
-        with open(output_file_path, "w") as f:
-            f.write(full_output)
-            
-        print(f"[+] Komut başarıyla tamamlandı. Çıktı '{os.path.basename(output_file_path)}' dosyasına kaydedildi.")
+        
     except subprocess.CalledProcessError as e:
         error_message = f"--- HATA OLUŞTU ---\nKomut çalıştırılamadı: {full_docker_command}\nHata: {e}"
-        # Hata durumunda stdout ve stderr'i birleştirip yaz
-        full_error_output = e.stdout + "\n" + e.stderr
-        with open(output_file_path, "w") as f:
-            f.write(error_message + "\n" + full_error_output)
-        print(f"[-] Komut çalıştırılırken bir hata oluştu: {e}")
+        full_output = error_message + "\n" + e.stdout + "\n" + e.stderr
+        logging.error(f"[-] Komut çalıştırılırken bir hata oluştu: {e}")
+    
+    finally:
+        # 1. Çıktıyı geçici dosyaya yaz
+        try:
+            with open(temp_file_path, "w", encoding='utf-8', errors='ignore') as f:
+                f.write(full_output)
+            
+            # 2. Geçici dosyayı S3'e yükle
+            s3_client.upload_file(temp_file_path, bucket_name, s3_key)
+            logging.info(f"[+] Çıktı S3'e yüklendi: {s3_key}")
+            
+        except Exception as s3_e:
+            logging.error(f"[-] S3 yükleme hatası ({s3_key}): {s3_e}")
+            
+        # 3. Geçici dosyayı her durumda sil
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)

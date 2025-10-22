@@ -1,3 +1,5 @@
+# core/tasks.py
+
 import os
 import time
 import logging
@@ -5,13 +7,12 @@ from celery import shared_task
 from .models import Scan
 from datetime import datetime
 
-# Kendi modüllerini import et
-# Proje yapına göre (örn: hydrascan_project.hydrascan_app.docker_helper)
-# import docker_helper
-# import recon_module
-# import web_app_module
-# ... ve diğerleri ...
-# Şimdilik aynı dizindeymiş gibi varsayıyorum:
+# --- YENİ IMPORTLAR (S3 İÇİN) ---
+import boto3
+from django.conf import settings
+# --- IMPORTLAR SONU ---
+
+# Kendi modüllerini "relative import" (from .) ile import et
 from . import docker_helper
 from . import recon_module
 from . import web_app_module
@@ -22,105 +23,148 @@ from . import mobile_module
 from . import report_module
 import concurrent.futures
 
-# main.py'deki fonksiyonları buraya taşıyabiliriz
-def create_output_directory(scan_id):
+
+# --- YENİ FONKSİYON ---
+def get_s3_prefix_and_client(scan_id):
     """
-    Çıktıların saklanacağı, Scan ID'sine özel benzersiz bir dizin oluşturur.
+    S3'e bağlanır ve tarama için kullanılacak ana 'klasör' yolunu (prefix) döndürür.
     """
-    # Django'nun media dizinini kullanmak en iyisidir
-    output_dir = f"media/scan_outputs/{scan_id}" 
+    # settings.py'deki AWS ayarlarını kullan
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME
+    )
     
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    return output_dir, os.path.abspath(output_dir)
+    # S3'teki yol (klasör adı gibi düşün). 'media/' Django-storages için standarttır.
+    s3_prefix = f"media/scan_outputs/{scan_id}/"
+    
+    return s3_client, s3_prefix
+
+# --- ESKİ create_output_directory fonksiyonunu SİLDİK ---
+
 
 def get_clean_domain(domain_with_port):
+    """ 'localhost:3000' girdisinden 'localhost' döndürür. """
     if ':' in domain_with_port:
         return domain_with_port.split(':')[0]
     return domain_with_port
 
 
-# BU, SENİN main() FONKSİYONUNUN YENİ HALİ
+# --- ANA GÖREV (TAMAMEN DEĞİŞTİ) ---
 @shared_task
 def run_hydrascan_task(scan_id):
     
-    # 1. Verileri input() yerine Veritabanından Çek
     try:
         scan = Scan.objects.get(id=scan_id)
     except Scan.DoesNotExist:
         logging.error(f"[-] Hata: Scan ID {scan_id} bulunamadı.")
         return
 
-    # 2. Durumu Güncelle ve Çıktı Dizini Oluştur
     scan.status = 'RUNNING'
     scan.save()
     
-    # main.py'deki create_output_directory'nin yeni hali
-    relative_output_dir, absolute_output_dir = create_output_directory(scan.id)
-    scan.output_directory = relative_output_dir # Yolu veritabanına kaydet
-    scan.save()
+    # --- DEĞİŞİKLİK: YEREL KLASÖR YERİNE S3 BAĞLANTISI ---
+    # Artık yerel klasör yok. S3 client ve S3 yolu (prefix) alınıyor.
+    try:
+        s3_client, s3_prefix = get_s3_prefix_and_client(scan.id)
+        # Yolu (S3 prefix) veritabanına kaydedelim (örn: media/scan_outputs/1/)
+        scan.output_directory = s3_prefix 
+        scan.save()
+    except Exception as e:
+        logging.error(f"[-] S3 İstemcisi oluşturulurken hata: {e}. (settings.py'deki AWS ayarlarını kontrol et)")
+        scan.status = 'FAILED'
+        scan.save()
+        return
+    # --- DEĞİŞİKLİK SONU ---
 
-    # main.py'deki değişkenleri veritabanından al
+    # Veritabanından değişkenleri al
     domain_input = scan.target_full_domain
     clean_domain = get_clean_domain(domain_input)
     internal_ip_range = scan.internal_ip_range
-    apk_file_path = scan.apk_file_s3_path # Bu yolu S3'ten alacak şekilde güncellemeliyiz
-    api_key = scan.gemini_api_key
+    apk_file_path = scan.apk_file_s3_path # (Bu da S3'e yüklenmeli, şimdilik null)
     
+    # settings.py'deki AWS anahtarlarını al (cloud_module için)
     aws_keys = {}
     if scan.aws_access_key:
         aws_keys['access_key'] = scan.aws_access_key
         aws_keys['secret_key'] = scan.aws_secret_key
         aws_keys['region'] = scan.aws_region
 
-    # --- ÖNEMLİ DEĞİŞİKLİK ---
-    # Docker imajı oluşturma (build) işlemi, her taramada ÇALIŞTIRILMAMALI.
-    # Bu, sunucu kurulurken (deploy) bir kez yapılır.
-    # image_name = docker_helper.build_custom_image() # <-- BU SATIRI KALDIR
-    image_name = "pentest-araci-kali:v1.5" # İmajın adını sabit olarak al
-    
-    # --- main.py'deki Test Akışının AYNISI ---
+    # Gemini API anahtarını güvenli bir yerden al (tasks.py'ye hardcode etmiştik)
+    api_key = "SENIN-GERCEK-GEMINI-API-KEYIN-BURAYA-GELECEK"
+    if not api_key:
+        logging.error("[-] Gemini API anahtarı tasks.py içinde ayarlanmamış!")
+        scan.status = 'FAILED'
+        scan.save()
+        return
+        
+    image_name = "pentest-araci-kali:v1.5" # Docker imaj adı
+
     try:
         logging.info(f"\n[+] Scan ID {scan.id} için paralel görevler başlatılıyor...")
+        
+        # --- DEĞİŞİKLİK: Modüllere S3 argümanlarını yolluyoruz ---
+        # Artık 'absolute_output_dir' yollamıyoruz.
+        s3_args = (s3_client, settings.AWS_STORAGE_BUCKET_NAME, s3_prefix)
+        
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures = [
-                # Senin fonksiyonların, ama 'output_dir' olarak yeni yolu veriyoruz
-                executor.submit(recon_module.run_reconnaissance, clean_domain, domain_input, absolute_output_dir, image_name),
-                executor.submit(web_app_module.run_web_tests, domain_input, absolute_output_dir, image_name),
-                executor.submit(api_module.run_api_tests, domain_input, absolute_output_dir, image_name)
+                executor.submit(recon_module.run_reconnaissance, clean_domain, domain_input, image_name, *s3_args),
+                executor.submit(web_app_module.run_web_tests, domain_input, image_name, *s3_args),
+                executor.submit(api_module.run_api_tests, domain_input, image_name, *s3_args)
             ]
             for future in concurrent.futures.as_completed(futures):
-                future.result()
+                future.result() # Hata varsa burada ortaya çıkar
+        
+        logging.info("\n[+] Paralel görevler tamamlandı.")
         
         if internal_ip_range:
-            internal_network_module.run_internal_tests(internal_ip_range, absolute_output_dir, image_name)
+            internal_network_module.run_internal_tests(internal_ip_range, image_name, *s3_args)
         if aws_keys:
             cloud_module.run_cloud_tests(
                 aws_keys['access_key'], aws_keys['secret_key'], aws_keys['region'],
-                absolute_output_dir, image_name
+                image_name, *s3_args
             )
         if apk_file_path:
-            # Burayı S3'ten dosyayı indirmek için güncellemen gerekecek
-            mobile_module.run_mobile_tests(apk_file_path, absolute_output_dir, image_name)
+            # TODO: APK dosyasını S3'ten indirme mantığı buraya eklenmeli
+            # mobile_module.run_mobile_tests(apk_file_path, image_name, *s3_args)
+            logging.info("[i] Mobil tarama (S3'ten APK indirme) şimdilik atlandı.")
 
     except Exception as e:
-        logging.error(f"[-] Testler sırasında hata: {e}")
+        logging.exception(f"[-] Scan ID {scan.id} testler sırasında çöktü: {e}")
         scan.status = 'FAILED'
         scan.save()
         return
 
-    # --- Raporlama ---
-    logging.info(f"\n[+] Scan ID {scan.id} için rapor oluşturuluyor...")
-    scan.status = 'REPORTING'
-    scan.save()
+    # --- Raporlama (S3 ile çalışacak şekilde) ---
+    try:
+        logging.info(f"\n[+] Scan ID {scan.id} için rapor oluşturuluyor...")
+        scan.status = 'REPORTING'
+        scan.save()
+        
+        # report_module'a S3 bilgilerini yolluyoruz
+        report_file_s3_key = report_module.generate_report(
+            s3_client, 
+            settings.AWS_STORAGE_BUCKET_NAME, 
+            s3_prefix, 
+            domain_input, 
+            api_key
+        )
+        
+        if report_file_s3_key:
+            # Raporun tam S3 yolunu (key) kaydet
+            scan.report_file_path = report_file_s3_key
+            scan.status = 'COMPLETED'
+            logging.info(f"\n[+] Scan ID {scan.id} tamamlandı. Rapor S3'e yüklendi: {scan.report_file_path}")
+        else:
+            logging.error(f"[-] Rapor oluşturma başarısız oldu, S3 anahtarı alınamadı.")
+            scan.status = 'FAILED'
     
-    # report_module.py'yi de 'report_file_path' döndürecek şekilde düzenlemeliyiz
-    report_file_abs_path = report_module.generate_report(absolute_output_dir, domain_input, api_key)
-    
-    # Raporun göreceli yolunu DB'ye kaydet
-    scan.report_file_path = report_file_abs_path.replace(os.path.abspath('media/'), 'media/')
-    scan.status = 'COMPLETED'
+    except Exception as e:
+        logging.exception(f"[-] Scan ID {scan.id} raporlama sırasında çöktü: {e}")
+        scan.status = 'FAILED'
+
     scan.completed_at = datetime.now()
     scan.save()
-    
-    logging.info(f"\n[+] Scan ID {scan.id} tamamlandı. Rapor şurada: {scan.report_file_path}")
