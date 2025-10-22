@@ -26,7 +26,6 @@ class Scan(models.Model):
     apk_file_s3_path = models.CharField(max_length=1024, blank=True, null=True)
 
     # main.py'deki 'api_key' (DİKKAT: Bunu kullanıcıya bağlamak daha güvenli)
-    gemini_api_key = models.CharField(max_length=255, blank=True, null=True)
 
     # İşin durumunu takip etmek için
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
@@ -40,7 +39,8 @@ class Scan(models.Model):
     # Diğer bilgiler
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    # user = models.ForeignKey(User, on_delete=models.CASCADE) # Kullanıcı sistemi ekleyince
+    user = models.ForeignKey(User, on_delete=models.CASCADE) # Kullanıcı sistemi ekleyince
 
     def __str__(self):
-        return f"{self.target_full_domain} (ID: {self.id})"
+        # Modelin yönetim panelinde daha güzel görünmesi için bunu güncelleyelim
+        return f"{self.target_full_domain} (Kullanıcı: {self.user.username})"
