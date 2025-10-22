@@ -12,14 +12,14 @@ from datetime import datetime
 # import web_app_module
 # ... ve diğerleri ...
 # Şimdilik aynı dizindeymiş gibi varsayıyorum:
-import docker_helper
-import recon_module
-import web_app_module
-import api_module
-import internal_network_module
-import cloud_module
-import mobile_module
-import report_module
+from . import docker_helper
+from . import recon_module
+from . import web_app_module
+from . import api_module
+from . import internal_network_module
+from . import cloud_module
+from . import mobile_module
+from . import report_module
 import concurrent.futures
 
 # main.py'deki fonksiyonları buraya taşıyabiliriz
@@ -48,7 +48,7 @@ def run_hydrascan_task(scan_id):
     try:
         scan = Scan.objects.get(id=scan_id)
     except Scan.DoesNotExist:
-        print(f"[-] Hata: Scan ID {scan_id} bulunamadı.")
+        logging.error(f"[-] Hata: Scan ID {scan_id} bulunamadı.")
         return
 
     # 2. Durumu Güncelle ve Çıktı Dizini Oluştur
@@ -81,7 +81,7 @@ def run_hydrascan_task(scan_id):
     
     # --- main.py'deki Test Akışının AYNISI ---
     try:
-        print(f"\n[+] Scan ID {scan.id} için paralel görevler başlatılıyor...")
+        logging.info(f"\n[+] Scan ID {scan.id} için paralel görevler başlatılıyor...")
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures = [
                 # Senin fonksiyonların, ama 'output_dir' olarak yeni yolu veriyoruz
@@ -104,13 +104,13 @@ def run_hydrascan_task(scan_id):
             mobile_module.run_mobile_tests(apk_file_path, absolute_output_dir, image_name)
 
     except Exception as e:
-        print(f"[-] Testler sırasında hata: {e}")
+        logging.error(f"[-] Testler sırasında hata: {e}")
         scan.status = 'FAILED'
         scan.save()
         return
 
     # --- Raporlama ---
-    print(f"\n[+] Scan ID {scan.id} için rapor oluşturuluyor...")
+    logging.info(f"\n[+] Scan ID {scan.id} için rapor oluşturuluyor...")
     scan.status = 'REPORTING'
     scan.save()
     
@@ -123,4 +123,4 @@ def run_hydrascan_task(scan_id):
     scan.completed_at = datetime.now()
     scan.save()
     
-    print(f"\n[+] Scan ID {scan.id} tamamlandı. Rapor şurada: {scan.report_file_path}")
+    logging.info(f"\n[+] Scan ID {scan.id} tamamlandı. Rapor şurada: {scan.report_file_path}")

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Tarama Detayı - {{ scan.id }}</title>
+    
+    {% if scan.status == 'RUNNING' or scan.status == 'PENDING' or scan.status == 'REPORTING' %}
+        <meta http-equiv="refresh" content="5">
+    {% endif %}
+</head>
+<body>
+    <h1>Tarama Detayı (ID: {{ scan.id }})</h1>
+    <h2>Hedef: {{ scan.target_full_domain }}</h2>
+    
+    <p><strong>Durum: {{ scan.get_status_display }}</strong></p>
+    
+    {% if scan.status == 'COMPLETED' %}
+        <p>Tarama tamamlandı!</p>
+        <a href="/{{ scan.report_file_path }}" target="_blank">
+            Raporu Görüntüle
+        </a>
+    {% elif scan.status == 'FAILED' %}
+        <p>Tarama hatayla sonuçlandı.</p>
+    {% else %}
+        <p>Tarama devam ediyor... Sayfa 5 saniye içinde yenilenecek.</p>
+    {% endif %}
+    
+    <br><br>
+    <a href="/">Yeni Tarama Başlat</a>
+</body>
+</html>

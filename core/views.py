@@ -1,7 +1,6 @@
 from django.shortcuts import render, redirect
 from .models import Scan
 from .tasks import run_hydrascan_task # Henüz oluşturmadık, ama oluşturacağız
-from .main_refactored import get_clean_domain # main.py'deki yardımcı fonksiyon
 
 def start_scan_view(request):
     if request.method == 'POST':

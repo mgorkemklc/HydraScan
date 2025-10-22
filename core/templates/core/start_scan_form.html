@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Yeni Tarama Başlat</title>
+</head>
+<body>
+    <h1>HydraScan - Yeni Tarama</h1>
+    <form method="POST">
+        {% csrf_token %} <div>
+            <label for="domain_input">Hedef Domain (örn: site.com:8080):</label><br>
+            <input type="text" id="domain_input" name="domain_input" required>
+        </div>
+        <br>
+        <div>
+            <label for="internal_ip_range">İç Ağ IP Aralığı (örn: 192.168.1.0/24):</label><br>
+            <input type="text" id="internal_ip_range" name="internal_ip_range">
+        </div>
+        <br>
+        <div>
+            <label for="gemini_api_key">Gemini API Anahtarı:</label><br>
+            <input type="text" id="gemini_api_key" name="gemini_api_key" required>
+        </div>
+        <br>
+        
+        <button type="submit">Taramayı Başlat</button>
+    </form>
+</body>
+</html>
