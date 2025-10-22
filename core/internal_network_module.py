@@ -1,5 +1,5 @@
 import os
-from docker_helper import run_command_in_docker
+from .docker_helper import run_command_in_docker
 
 def run_internal_tests(ip_range, output_dir, image_name):
     """

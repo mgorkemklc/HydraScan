@@ -1,5 +1,5 @@
 import os
-from docker_helper import run_command_in_docker
+from .docker_helper import run_command_in_docker
 
 def run_api_tests(domain, output_dir, image_name):
     """

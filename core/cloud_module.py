@@ -1,5 +1,5 @@
 import os
-from docker_helper import run_command_in_docker
+from .docker_helper import run_command_in_docker
 
 def run_cloud_tests(aws_access_key, aws_secret_key, aws_region, output_dir, image_name):
     """
