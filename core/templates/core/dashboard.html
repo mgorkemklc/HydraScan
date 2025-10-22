@@ -1,0 +1,58 @@
+{% extends 'core/base.html' %}
+
+{% block title %}HydraScan - Dashboard{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Gösterge Paneli</h1>
+        <a href="{% url 'start_scan' %}" class="btn btn-primary d-lg-none">+ Yeni Tarama</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            Geçmiş Taramalar
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">Hedef</th>
+                        <th scope="col">Durum</th>
+                        <th scope="col">Başlangıç</th>
+                        <th scope="col">Detay</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for scan in scans %}
+                    <tr>
+                        <th scope="row">{{ scan.id }}</th>
+                        <td>{{ scan.target_full_domain }}</td>
+                        <td>
+                            {% if scan.status == 'COMPLETED' %}
+                                <span class="badge bg-success">Tamamlandı</span>
+                            {% elif scan.status == 'RUNNING' or scan.status == 'REPORTING' %}
+                                <span class="badge bg-info text-dark">Çalışıyor...</span>
+                            {% elif scan.status == 'FAILED' %}
+                                <span class="badge bg-danger">Hata</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Beklemede</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ scan.created_at|date:"d M Y, H:i" }}</td>
+                        <td>
+                            <a href="{% url 'scan_detail_page' scan.id %}" class="btn btn-sm btn-outline-secondary">
+                                Görüntüle
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">Henüz bir tarama başlatılmamış.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

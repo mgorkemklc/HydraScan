@@ -1,6 +1,16 @@
 from django.shortcuts import render, redirect
 from .models import Scan
-from .tasks import run_hydrascan_task # Henüz oluşturmadık, ama oluşturacağız
+from .tasks import run_hydrascan_task
+
+def dashboard_view(request):
+    """
+    Ana gösterge paneli. Tüm taramaları listeler.
+    """
+    # Veritabanındaki tüm Scan nesnelerini al, en yeniden eskiye sırala
+    scans = Scan.objects.all().order_by('-created_at') 
+    
+    # scan_list adıyla template'e gönder
+    return render(request, 'core/dashboard.html', {'scans': scans})
 
 def start_scan_view(request):
     if request.method == 'POST':

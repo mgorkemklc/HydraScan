@@ -1,29 +1,42 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <title>Yeni Tarama Başlat</title>
-</head>
-<body>
-    <h1>HydraScan - Yeni Tarama</h1>
-    <form method="POST">
-        {% csrf_token %} <div>
-            <label for="domain_input">Hedef Domain (örn: site.com:8080):</label><br>
-            <input type="text" id="domain_input" name="domain_input" required>
+{% extends 'core/base.html' %}
+
+{% block title %}Yeni Tarama - HydraScan{% endblock %}
+
+{% block content %}
+    <h1>Yeni Tarama Başlat</h1>
+    <hr>
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card card-body">
+                <form method="POST">
+                    {% csrf_token %} 
+                    
+                    <div class="mb-3">
+                        <label for="domain_input" class="form-label">Hedef Domain (örn: site.com:8080):</label>
+                        <input type="text" class="form-control" id="domain_input" name="domain_input" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="internal_ip_range" class="form-label">İç Ağ IP Aralığı (Opsiyonel):</label>
+                        <input type="text" class="form-control" id="internal_ip_range" name="internal_ip_range" placeholder="örn: 192.168.1.0/24">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="gemini_api_key" class="form-label">Gemini API Anahtarı:</label>
+                        <input type="password" class="form-control" id="gemini_api_key" name="gemini_api_key" required>
+                        <div class="form-text">API anahtarınız raporlama için gereklidir ve kaydedilmez.</div>
+                    </div>
+                    
+                    <hr>
+                    <button type="submit" class="btn btn-primary btn-lg">Taramayı Başlat</button>
+                </form>
+            </div>
         </div>
-        <br>
-        <div>
-            <label for="internal_ip_range">İç Ağ IP Aralığı (örn: 192.168.1.0/24):</label><br>
-            <input type="text" id="internal_ip_range" name="internal_ip_range">
+        <div class="col-md-4">
+            <div class="alert alert-info">
+                <strong>Bilgilendirme:</strong>
+                <p>Lütfen tarama başlatmadan önce hedef sistemden gerekli izinleri aldığınızdan emin olun.</p>
+            </div>
         </div>
-        <br>
-        <div>
-            <label for="gemini_api_key">Gemini API Anahtarı:</label><br>
-            <input type="text" id="gemini_api_key" name="gemini_api_key" required>
-        </div>
-        <br>
-        
-        <button type="submit">Taramayı Başlat</button>
-    </form>
-</body>
-</html>
+    </div>
+{% endblock %}

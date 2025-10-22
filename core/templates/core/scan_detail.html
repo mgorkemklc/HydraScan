@@ -1,31 +1,41 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <title>Tarama Detayı - {{ scan.id }}</title>
+{% extends 'core/base.html' %}
+
+{% block title %}Tarama Detayı {{ scan.id }} - HydraScan{% endblock %}
+
+{% block content %}
     
     {% if scan.status == 'RUNNING' or scan.status == 'PENDING' or scan.status == 'REPORTING' %}
         <meta http-equiv="refresh" content="5">
     {% endif %}
-</head>
-<body>
+
     <h1>Tarama Detayı (ID: {{ scan.id }})</h1>
     <h2>Hedef: {{ scan.target_full_domain }}</h2>
-    
-    <p><strong>Durum: {{ scan.get_status_display }}</strong></p>
-    
+    <hr>
+
     {% if scan.status == 'COMPLETED' %}
-        <p>Tarama tamamlandı!</p>
-        <a href="/{{ scan.report_file_path }}" target="_blank">
-            Raporu Görüntüle
-        </a>
+        <div class="alert alert-success">
+            <h4>Tarama tamamlandı!</h4>
+            <p>Raporunuz hazır. Görüntülemek için aşağıdaki butonu kullanabilirsiniz.</p>
+            <a href="/{{ scan.report_file_path }}" target="_blank" class="btn btn-success btn-lg">
+                Raporu Görüntüle
+            </a>
+        </div>
+        
     {% elif scan.status == 'FAILED' %}
-        <p>Tarama hatayla sonuçlandı.</p>
+        <div class="alert alert-danger">
+            <h4>Tarama hatayla sonuçlandı.</h4>
+            <p>Lütfen logları kontrol edin.</p>
+        </div>
     {% else %}
-        <p>Tarama devam ediyor... Sayfa 5 saniye içinde yenilenecek.</p>
+        <div class="alert alert-info">
+            <h4>Tarama Devam Ediyor... (Durum: {{ scan.get_status_display }})</h4>
+            <p>Bu sayfa 5 saniye içinde otomatik olarak yenilenecektir.</p>
+            <div class="spinner-border text-info" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
     {% endif %}
     
-    <br><br>
-    <a href="/">Yeni Tarama Başlat</a>
-</body>
-</html>
+    <br>
+    <a href="{% url 'dashboard' %}" class="btn btn-link">← Geri Dön (Dashboard)</a>
+{% endblock %}
