@@ -1,22 +1,23 @@
 import os
+import logging
 from .docker_helper import run_command_in_docker
 
-def run_api_tests(domain, output_dir, image_name):
+# DEĞİŞİKLİK: 'output_dir' parametresi S3 argümanlarıyla değişti
+def run_api_tests(domain, image_name, s3_client, bucket_name, s3_prefix):
     """
-    API endpoint'lerini keşfetmek için araçlar çalıştırır.
+    API test araçlarını çalıştırır ve çıktıları S3'e yükler.
     """
-    print("\n[+] 4. API Güvenlik Testleri modülü başlatılıyor...")
-    api_wordlist = "/usr/share/wordlists/dirb/common.txt"
-    target_url = f"https://{domain}"
+    logging.info("\n[+] 4. API Zafiyet Analizi modülü başlatılıyor...")
 
     commands = {
-        "ffuf_api_ciktisi.txt": f"ffuf -w {api_wordlist} -u {target_url}/FUZZ -t 100",
-        "ffuf_api_v1_ciktisi.txt": f"ffuf -w {api_wordlist} -u {target_url}/api/v1/FUZZ -t 100",
-        "ffuf_api_v2_ciktisi.txt": f"ffuf -w {api_wordlist} -u {target_url}/api/v2/FUZZ -t 100"
+        "kiterunner_ciktisi.txt": f"kiterunner scan http://{domain}/ -w /usr/share/wordlists/dirb/common.txt --ignore-status=404,400,500"
     }
 
     for output_filename, command in commands.items():
-        output_file_path = os.path.join(output_dir, output_filename)
-        run_command_in_docker(command, output_file_path, image_name)
+        # DEĞİŞİKLİK: Artık yerel yol değil, S3 anahtarı (yolu) oluşturuyoruz
+        s3_key = f"{s3_prefix}{output_filename}"
+        
+        # docker_helper'a S3 bilgilerini iletiyoruz
+        run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name)
 
-    print("\n[+] API Güvenlik Testleri modülü tamamlandı.")
+    logging.info("\n[+] API Zafiyet Analizi modülü tamamlandı.")

@@ -135,22 +135,14 @@ CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 # --- AYARLARIN SONU ---
 
 # --- AWS S3 AYARLARI ---
-# Canlıya geçtiğimizde bu ayarları AWS'den alacağız
-AWS_ACCESS_KEY_ID = 'SENIN_AWS_ACCESS_KEY_ID_BURAYA_GELECEK'
-AWS_SECRET_ACCESS_KEY = 'SENIN_AWS_SECRET_ACCESS_KEY_BURAYA_GELECEK'
-AWS_STORAGE_BUCKET_NAME = 'hydrascan-reports-bucket' # AWS'de oluşturacağın S3 kova adı
-AWS_S3_REGION_NAME = 'eu-central-1' # Örnek: Frankfurt. (Kendi bölgeni seç)
+# Bu değerleri AWS hesabını oluşturduktan sonra alacaksın.
+# Şimdilik yer tutucu olarak ekliyoruz.
+AWS_ACCESS_KEY_ID = 'YOUR_AWS_ACCESS_KEY_ID'
+AWS_SECRET_ACCESS_KEY = 'YOUR_AWS_SECRET_ACCESS_KEY'
+AWS_STORAGE_BUCKET_NAME = 'hydrascan-reports-bucket' # AWS'de oluşturacağın S3 kova adı (benzersiz olmalı)
+AWS_S3_REGION_NAME = 'eu-central-1' # Örnek: Frankfurt. (Kendine uygun bölgeyi seç)
 AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
 
-# Django'nun statik/media dosyaları için S3 kullanmasını söyle
-AWS_S3_OBJECT_PARAMETERS = {
-    'CacheControl': 'max-age=86400',
-}
-
-# Media dosyaları (tarama raporları) için
+# Media dosyaları (tarama raporları) için S3'ü kullan
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
-
-# (NOT: Statik dosyaları (CSS/JS) S3'e taşımak şimdilik opsiyonel, media'ya odaklanıyoruz)
-# STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-# STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'

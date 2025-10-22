@@ -1,30 +1,26 @@
 import os
+import logging
 from .docker_helper import run_command_in_docker
 
-def run_web_tests(domain, output_dir, image_name):
+# DEĞİŞİKLİK: 'output_dir' parametresi S3 argümanlarıyla değişti
+def run_web_tests(domain, image_name, s3_client, bucket_name, s3_prefix):
     """
-    Yaygın web uygulaması zafiyetlerini tarayan araçları çalıştırır.
+    Web uygulama test araçlarını çalıştırır ve çıktıları S3'e yükler.
     """
-    print("\n[+] 3. Web Uygulaması Güvenlik Testleri modülü başlatılıyor...")
-
-    dir_wordlist = "/usr/share/wordlists/dirb/common.txt"
+    logging.info("\n[+] 3. Web Uygulama Zafiyet Analizi modülü başlatılıyor...")
 
     commands = {
-        # DÜZELTME: Gobuster'a wildcard yanıtları görmezden gelmesi için --wildcard eklendi.
-        "gobuster_ciktisi.txt": f"gobuster dir -u http://{domain} -w {dir_wordlist} -t 50",
-        
-        "sqlmap_ciktisi.txt": f"sqlmap -u http://{domain} --crawl=1 --forms --batch --level=3 --risk=2",
-        
-        # DÜZELTME: xsser yerine daha modern ve etkili olan dalfox kullanılıyor.
-        "dalfox_ciktisi.txt": f"dalfox url http://{domain} --silence",
-        
-        "commix_ciktisi.txt": f"commix -u http://{domain} --crawl=1 --batch",
-        
-        "dirb_ciktisi.txt": f"dirb http://{domain} {dir_wordlist}"
+        "gobuster_ciktisi.txt": f"gobuster dir -u http://{domain} -w /usr/share/wordlists/dirb/common.txt -q",
+        "sqlmap_ciktisi.txt": f"sqlmap -u http://{domain} --batch --level=1 --risk=1",
+        "dalfox_ciktisi.txt": f"dalfox url http://{domain} --batch",
+        "commix_ciktisi.txt": f"commix -u http://{domain} --batch"
     }
 
     for output_filename, command in commands.items():
-        output_file_path = os.path.join(output_dir, output_filename)
-        run_command_in_docker(command, output_file_path, image_name)
+        # DEĞİŞİKLİK: Artık yerel yol değil, S3 anahtarı (yolu) oluşturuyoruz
+        s3_key = f"{s3_prefix}{output_filename}"
+        
+        # docker_helper'a S3 bilgilerini iletiyoruz
+        run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name)
 
-    print("\n[+] Web Uygulaması Güvenlik Testleri modülü tamamlandı.")
+    logging.info("\n[+] Web Uygulama Zafiyet Analizi modülü tamamlandı.")

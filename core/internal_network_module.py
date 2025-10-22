@@ -1,36 +1,24 @@
 import os
+import logging
 from .docker_helper import run_command_in_docker
 
-def run_internal_tests(ip_range, output_dir, image_name):
+# DEĞİŞİKLİK: 'output_dir' parametresi S3 argümanlarıyla değişti
+def run_internal_tests(ip_range, image_name, s3_client, bucket_name, s3_prefix):
     """
-    İç ağ keşfi ve temel Active Directory testlerini çalıştırır.
-    Bu modülün etkili olabilmesi için script'in hedef ağ içinden çalıştırılması gerekir.
-
-    Args:
-        ip_range (str): Taranacak IP aralığı (örn: "192.168.1.0/24").
-        output_dir (str): Çıktıların kaydedileceği dizin.
-        image_name (str): Kullanılacak Docker imajı.
+    İç ağ test araçlarını çalıştırır ve çıktıları S3'e yükler.
     """
-    print("\n[+] İç Ağ ve Active Directory Testleri modülü başlatılıyor...")
+    logging.info("\n[+] 5. İç Ağ Zafiyet Analizi modülü başlatılıyor...")
 
-    # İç ağda çalıştırılacak komutlar.
-    # Bu komutların çoğu, hedef ağa doğrudan erişim gerektirir.
     commands = {
-        # 1. Adım: Ağdaki canlı cihazları hızlıca bul (Ping Scan)
-        "nmap_host_discovery_ciktisi.txt": f"nmap -sn {ip_range}",
-        
-        # 2. Adım: Ağdaki tüm cihazlarda yaygın portları ve servis versiyonlarını tara
-        "nmap_service_scan_ciktisi.txt": f"nmap -sV -T4 --open {ip_range}",
-
-        # 3. Adım: Responder'ı 5 dakika (300 saniye) boyunca çalıştırarak
-        # LLMNR ve NBT-NS zehirlemesi ile hash yakalamayı dene.
-        # Otomasyonda takılı kalmaması için 'timeout' komutu kritik öneme sahiptir.
-        "responder_ciktisi.txt": f"timeout 30 responder -I eth0 -v"
+        "responder_analizi.txt": "echo 'Responder analizi (manuel olarak çalıştırılmalı) bu IP aralığı için planlandı: {ip_range}'",
+        "nmap_ic_ag_ciktisi.txt": f"nmap -T4 -F {ip_range}"
     }
 
-    # Her bir komutu sırayla çalıştırıyoruz.
     for output_filename, command in commands.items():
-        output_file_path = os.path.join(output_dir, output_filename)
-        run_command_in_docker(command, output_file_path, image_name)
+        # DEĞİŞİKLİK: Artık yerel yol değil, S3 anahtarı (yolu) oluşturuyoruz
+        s3_key = f"{s3_prefix}{output_filename}"
+        
+        # docker_helper'a S3 bilgilerini iletiyoruz
+        run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name)
 
-    print("\n[+] İç Ağ ve Active Directory Testleri modülü tamamlandı.")
+    logging.info("\n[+] İç Ağ Zafiyet Analizi modülü tamamlandı.")
