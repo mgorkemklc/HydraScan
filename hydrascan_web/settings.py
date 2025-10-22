@@ -125,3 +125,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 import os
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# --- CELERY AYARLARI ---
+# Celery'ye mesaj panosunun (broker) Redis olduğunu söylüyoruz.
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+
+# Görev sonuçlarının da Redis'e kaydedilmesini sağlıyoruz.
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+# --- AYARLARIN SONU ---
