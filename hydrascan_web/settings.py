@@ -128,10 +128,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # --- CELERY AYARLARI ---
 # Celery'ye mesaj panosunun (broker) Redis olduğunu söylüyoruz.
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = 'hydrascan-ecredis-scgjuq.serverless.euc1.cache.amazonaws.com:6379'
 
 # Görev sonuçlarının da Redis'e kaydedilmesini sağlıyoruz.
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'hydrascan-ecredis-scgjuq.serverless.euc1.cache.amazonaws.com:6379'
 # --- AYARLARIN SONU ---
 
 # --- AWS S3 AYARLARI ---
