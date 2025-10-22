@@ -4,6 +4,9 @@ import google.generativeai as genai
 import time
 from tqdm import tqdm
 import urllib.parse
+import logging # print yerine logging
+import tempfile # HTML raporunu geçici olarak yazmak için
+from botocore.exceptions import ClientError # S3 hatalarını yakalamak için
 
 def analyze_output_with_gemini(api_key, tool_name, file_content):
     """
@@ -33,14 +36,14 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"[-] Gemini API ile analiz sırasında hata oluştu: {e}")
+        logging.error(f"[-] Gemini API ile analiz sırasında hata oluştu: {e}")
         return f"**Analiz Başarısız Oldu**\n\n**Risk Seviyesi:** Bilgilendirici\n\nHata Detayı: {str(e)}"
 
 def create_executive_summary(api_key, all_analyses):
     """
     Tüm bireysel analizleri kullanarak bir yönetici özeti oluşturur.
     """
-    print("[+] Yönetici özeti oluşturuluyor...")
+    logging.info("[+] Yönetici özeti oluşturuluyor...")
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.5-pro')
@@ -62,7 +65,7 @@ def create_executive_summary(api_key, all_analyses):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"[-] Yönetici özeti oluşturulurken hata oluştu: {e}")
+        logging.error(f"[-] Yönetici özeti oluşturulurken hata oluştu: {e}")
         return "Yönetici özeti oluşturulurken bir hata meydana geldi."
 
 def parse_risk_level(text):
@@ -75,34 +78,64 @@ def parse_risk_level(text):
         return match.group(1).lower().replace('ü', 'u').replace('ş', 's').replace('ı', 'i').replace('ö', 'o').replace('ğ', 'g').replace('ç', 'c')
     return "bilgilendirici"
 
-def generate_report(output_dir, domain, api_key):
+def generate_report(s3_client, bucket_name, s3_prefix, domain, api_key):
     """
-    Tüm .txt çıktılarını okur, Gemini ile analiz eder ve gelişmiş bir HTML raporu oluşturur.
+    Belirtilen S3 prefix'indeki tüm .txt çıktılarını okur, Gemini ile analiz eder,
+    gelişmiş bir HTML raporu oluşturur ve bu raporu S3'e yükler.
+    Döndürdüğü değer: Raporun S3 anahtarı (key) veya None (hata durumunda).
     """
-    print("\n[+] 5. Raporlama modülü başlatılıyor...")
-    report_file_path = os.path.join(output_dir, "pentest_raporu_v2.html")
+    logging.info("\n[+] 5. Raporlama modülü başlatılıyor (S3 ile)...")
     
-    output_files = [f for f in os.listdir(output_dir) if f.endswith('.txt')]
     analysis_results = {}
     raw_outputs = {}
 
-    print("[+] Gemini AI ile çıktılar analiz ediliyor...")
-    for filename in tqdm(output_files, desc="Analiz İlerlemesi"):
-        tool_name = filename.replace('_ciktisi.txt', '').replace('_', ' ').title()
-        file_path = os.path.join(output_dir, filename)
+    logging.info("[+] S3'ten çıktılar okunuyor ve Gemini AI ile analiz ediliyor...")
+    try:
+        # S3'teki ilgili "klasördeki" (prefix) tüm nesneleri listele
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=s3_prefix)
         
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
+        # Eğer prefix altında dosya yoksa (veya prefix yoksa)
+        if 'Contents' not in response:
+             logging.warning(f"[-] S3'te '{s3_prefix}' altında analiz edilecek dosya bulunamadı.")
+             # İsteğe bağlı olarak boş bir rapor oluşturulabilir veya None dönülebilir
+             # Şimdilik None dönüyoruz
+             return None
+
+        # Sadece .txt ile biten dosyaları al
+        output_files = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith('.txt')]
+
+        for s3_key in tqdm(output_files, desc="Analiz İlerlemesi"):
+            # Dosya adından araç adını çıkar (örn: 'media/scan_outputs/1/nmap_ciktisi.txt' -> 'Nmap')
+            filename = os.path.basename(s3_key)
+            tool_name = filename.replace('_ciktisi.txt', '').replace('_', ' ').title()
+            
+            try:
+                # S3'ten dosyayı indir ve içeriğini oku
+                s3_object = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
+                content = s3_object['Body'].read().decode('utf-8', errors='ignore')
+                
                 raw_outputs[tool_name] = content
                 if not content.strip():
                     analysis_results[tool_name] = "**Analiz Yapılamadı**\n\n**Risk Seviyesi:** Bilgilendirici\n\nÇıktı dosyası boş."
                     continue
-            
-            analysis = analyze_output_with_gemini(api_key, tool_name, content)
-            analysis_results[tool_name] = analysis
-        except Exception as e:
-            analysis_results[tool_name] = f"**Hata**\n\n**Risk Seviyesi:** Bilgilendirici\n\nDosya okunurken bir sorun oluştu: {e}"
+                
+                # Gemini ile analiz et (bu fonksiyon aynı kaldı)
+                analysis = analyze_output_with_gemini(api_key, tool_name, content)
+                analysis_results[tool_name] = analysis
+                
+            except ClientError as e:
+                logging.error(f"[-] S3'ten '{s3_key}' okunurken hata: {e}")
+                analysis_results[tool_name] = f"**Hata**\n\n**Risk Seviyesi:** Bilgilendirici\n\nS3 dosyası okunurken bir sorun oluştu: {e}"
+            except Exception as e:
+                logging.error(f"[-] '{tool_name}' analizi sırasında genel hata: {e}")
+                analysis_results[tool_name] = f"**Hata**\n\n**Risk Seviyesi:** Bilgilendirici\n\nAnaliz sırasında beklenmedik hata: {e}"
+
+    except ClientError as e:
+        logging.error(f"[-] S3'te '{s3_prefix}' listelenirken hata: {e}")
+        return None # Rapor oluşturma başarısız
+    except Exception as e:
+        logging.error(f"[-] Raporlama başlangıcında genel hata: {e}")
+        return None
 
     risk_counts = {"kritik": 0, "yüksek": 0, "orta": 0, "düşük": 0, "bilgilendirici": 0}
     for analysis in analysis_results.values():
@@ -142,9 +175,12 @@ def generate_report(output_dir, domain, api_key):
     """
     chart_url = f"https://quickchart.io/chart?c={urllib.parse.quote(chart_config)}"
     
-    print("[+] Gelişmiş HTML raporu oluşturuluyor...")
+    logging.info("[+] Gelişmiş HTML raporu oluşturuluyor...")
     
-    # --- BURASI EKSİK OLAN KISIM ---
+    # --- HTML İçeriği Oluşturma (Aynı, sadece 'n' yerine '<br>' kontrolü önemli) ---
+    # Executive summary'deki olası newline'ları HTML <br> tag'ine çevir
+    executive_summary_html = executive_summary.replace('\n', '<br>')
+    
     html_content = f"""
     <!DOCTYPE html>
     <html lang="tr">
@@ -181,7 +217,7 @@ def generate_report(output_dir, domain, api_key):
             <h2>Yönetici Özeti</h2>
             <div class="card mb-4">
                 <div class="card-body">
-                    {executive_summary.replace('n', '<br>')}
+                    {executive_summary_html}
                 </div>
             </div>
 
@@ -196,9 +232,12 @@ def generate_report(output_dir, domain, api_key):
             <div id="accordion">
     """
 
-    # Analiz sonuçlarını HTML'e ekle
     for i, (tool_name, analysis) in enumerate(analysis_results.items()):
         risk_level = parse_risk_level(analysis)
+        # Analizdeki ve Ham Çıktıdaki newline'ları <br>'ye çevir
+        analysis_html = analysis.replace('\n', '<br>')
+        raw_output_html = raw_outputs.get(tool_name, "Ham çıktı bulunamadı.").replace('\n', '<br>') # Ham çıktıyı da ekleyelim
+        
         html_content += f"""
                 <div class="card risk-card risk-{risk_level}">
                     <div class="card-header" id="heading{i}">
@@ -210,10 +249,10 @@ def generate_report(output_dir, domain, api_key):
                     </div>
                     <div id="collapse{i}" class="collapse {'show' if i == 0 else ''}" aria-labelledby="heading{i}" data-parent="#accordion">
                         <div class="card-body">
-                            {analysis.replace('n', '<br>')}
+                            {analysis_html}
                             <hr>
                             <h5>Ham Çıktı:</h5>
-                            <pre><code>{raw_outputs[tool_name]}</code></pre>
+                            <pre><code style="white-space: pre-wrap;">{raw_output_html}</code></pre>
                         </div>
                     </div>
                 </div>
@@ -228,10 +267,33 @@ def generate_report(output_dir, domain, api_key):
     </body>
     </html>
     """
+    report_filename = "pentest_raporu_v2.html"
+    report_s3_key = f"{s3_prefix}{report_filename}" # Tam S3 yolu (örn: media/scan_outputs/1/pentest_raporu_v2.html)
 
+    # HTML içeriğini geçici bir dosyaya yaz
     try:
-        with open(report_file_path, "w", encoding='utf-8') as f:
-            f.write(html_content)
-        print(f"\n[+] Rapor başarıyla '{report_file_path}' dosyasına kaydedildi.")
+        with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix=".html") as temp_report:
+            temp_report_path = temp_report.name
+            temp_report.write(html_content)
+        
+        # Geçici HTML dosyasını S3'e yükle
+        s3_client.upload_file(temp_report_path, bucket_name, report_s3_key)
+        logging.info(f"\n[+] Rapor başarıyla S3'e yüklendi: {report_s3_key}")
+        
+        # Geçici dosyayı sil
+        os.remove(temp_report_path)
+        
+        # Başarılı olursa raporun S3 anahtarını döndür
+        return report_s3_key
+        
+    except ClientError as e:
+        logging.error(f"[-] Rapor S3'e yüklenirken hata oluştu ({report_s3_key}): {e}")
+        # Geçici dosya oluşturulduysa silmeyi dene
+        if 'temp_report_path' in locals() and os.path.exists(temp_report_path):
+            os.remove(temp_report_path)
+        return None # Hata durumunda None döndür
     except Exception as e:
-        print(f"[-] Rapor dosyası yazılırken bir hata oluştu: {e}")
+        logging.error(f"[-] Rapor oluşturma/yükleme sırasında genel hata: {e}")
+        if 'temp_report_path' in locals() and os.path.exists(temp_report_path):
+            os.remove(temp_report_path)
+        return None
