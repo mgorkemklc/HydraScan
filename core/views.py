@@ -1,3 +1,5 @@
+# core/views.py (GÜNCELLENMİŞ İÇERİK)
+
 from django.shortcuts import render, redirect
 from .models import Scan
 from .tasks import run_hydrascan_task
@@ -20,7 +22,9 @@ def start_scan_view(request):
         aws_key = request.POST.get('aws_access_key')
         aws_secret = request.POST.get('aws_secret_key')
         aws_region = request.POST.get('aws_region')
-        gemini_key = request.POST.get('gemini_api_key')
+        
+        # gemini_key satırı buradan kaldırıldı
+        
         # ... (apk dosyası yüklemeyi de eklemelisin) ...
         
         # 2. Veritabanına yeni bir Scan kaydı oluştur
@@ -30,8 +34,10 @@ def start_scan_view(request):
             aws_access_key=aws_key,
             aws_secret_key=aws_secret,
             aws_region=aws_region,
-            gemini_api_key=gemini_key,
+            # gemini_api_key=gemini_key, satırı buradan kaldırıldı
             status='PENDING'
+            # Not: Modeli güncelleyip 'user' alanı eklediğimizde buraya request.user eklemeliyiz
+            # user=request.user 
         )
         
         # 3. Ağır işi Celery'ye havale et

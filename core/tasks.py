@@ -1,3 +1,5 @@
+# core/tasks.py (GÜNCELLENMİŞ İÇERİK)
+
 import os
 import time
 import logging
@@ -5,7 +7,7 @@ from celery import shared_task
 from .models import Scan
 from datetime import datetime
 
-# --- YENİ IMPORTLAR (S3 İÇİN) ---
+# --- YENİ IMPORTLAR (S3 VE AYARLAR İÇİN) ---
 import boto3
 from django.conf import settings
 # --- IMPORTLAR SONU ---
@@ -22,10 +24,13 @@ import concurrent.futures
 
 # --- YENİ FONKSİYON ---
 def get_s3_prefix_and_client(scan_id):
+    # DİKKAT: settings.py'de S3 anahtarları olmadığı için,
+    # bu fonksiyon ECS Görev Rolü'nü (IAM Role) kullanacaktır.
+    # Yerelde test ederken hata alırsanız, boto3'e anahtarları
+    # environment variable olarak (AWS_ACCESS_KEY_ID vb.) vermeniz gerekir.
     s3_client = boto3.client(
         's3',
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        # Anahtarlar ECS Rolünden otomatik alınacak
         region_name=settings.AWS_S3_REGION_NAME
     )
     s3_prefix = f"media/scan_outputs/{scan_id}/"
@@ -54,7 +59,7 @@ def run_hydrascan_task(scan_id):
         scan.output_directory = s3_prefix 
         scan.save()
     except Exception as e:
-        logging.error(f"[-] S3 İstemcisi oluşturulurken hata: {e}. (settings.py'deki AWS ayarlarını kontrol et)")
+        logging.error(f"[-] S3 İstemcisi oluşturulurken hata: {e}.")
         scan.status = 'FAILED'
         scan.save()
         return
@@ -71,10 +76,10 @@ def run_hydrascan_task(scan_id):
         aws_keys['secret_key'] = scan.aws_secret_key
         aws_keys['region'] = scan.aws_region
 
-    # Gemini API anahtarını güvenli bir yerden al
-    api_key = "SENIN-GERCEK-GEMINI-API-KEYIN-BURAYA-GELECEK"
+    # Gemini API anahtarını sabit kodlamak yerine settings'den al
+    api_key = settings.GEMINI_API_KEY
     if not api_key:
-        logging.error("[-] Gemini API anahtarı tasks.py içinde ayarlanmamış!")
+        logging.error("[-] Gemini API anahtarı settings.py (AWS Secrets Manager) içinde ayarlanmamış!")
         scan.status = 'FAILED'
         scan.save()
         return

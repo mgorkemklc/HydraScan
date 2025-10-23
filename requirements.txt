@@ -1,0 +1,16 @@
+# Django ve Web Sunucusu
+django
+gunicorn
+
+# Asenkron Görevler
+celery
+redis
+
+# AWS Servisleri
+boto3
+django-storages
+psycopg2-binary
+
+# Raporlama ve Diğerleri
+google-generativeai
+tqdm
