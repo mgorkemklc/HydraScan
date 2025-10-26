@@ -14,9 +14,9 @@ def run_web_tests(domain, image_name, output_dir):
     logging.info("\n[+] 3. Web Uygulama Zafiyet Analizi modülü başlatılıyor...")
 
     commands = {
-        "gobuster_ciktisi.txt": f"gobuster dir -u http://{domain} -w /usr/share/wordlists/dirb/common.txt -q",
+        "gobuster_ciktisi.txt": f"gobuster dir -u http://{domain} -w /usr/share/wordlists/dirb/common.txt -q -fw",
         "sqlmap_ciktisi.txt": f"sqlmap -u http://{domain} --batch --level=1 --risk=1",
-        "dalfox_ciktisi.txt": f"dalfox url http://{domain} --batch",
+        "dalfox_ciktisi.txt": f"dalfox url http://{domain}",
         "commix_ciktisi.txt": f"commix -u http://{domain} --batch"
     }
 

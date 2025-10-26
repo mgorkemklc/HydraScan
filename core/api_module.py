@@ -15,7 +15,7 @@ def run_api_tests(domain, image_name, output_dir):
 
     commands = {
         # Kiterunner'ın çıktısını /output klasörüne yönlendirelim
-        "kiterunner_ciktisi.txt": f"kiterunner scan http://{domain}/ -w /usr/share/wordlists/dirb/common.txt --ignore-status=404,400,500"
+        "kiterunner_ciktisi.txt": f"kiterunner scan http://{domain}/ -w /usr/share/wordlists/dirb/common.txt"
     }
 
     for output_filename, command in commands.items():
