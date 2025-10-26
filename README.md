@@ -9,7 +9,7 @@
 
 ---
 
-## [<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/907c7047-2bed-45d4-badf-f2736ba91ea3" />]
+## <img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/907c7047-2bed-45d4-badf-f2736ba91ea3" />
 
 
 ---
