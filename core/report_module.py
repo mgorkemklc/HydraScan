@@ -1,20 +1,30 @@
+# core/report_module.py (YENİ - YEREL HALİ)
+
 import os
 import re
 import google.generativeai as genai
 import time
 from tqdm import tqdm
 import urllib.parse
-import logging # print yerine logging
-import tempfile # HTML raporunu geçici olarak yazmak için
-from botocore.exceptions import ClientError # S3 hatalarını yakalamak için
+import logging
+# ClientError ve tempfile kaldırıldı
 
+# (analyze_output_with_gemini, create_executive_summary, parse_risk_level 
+# fonksiyonları S3 kullanmadığı için AYNEN KALIYOR)
+
+# Bu fonksiyonları (analyze_output_with_gemini, create_executive_summary, 
+# parse_risk_level) orijinal report_module.py dosyasından buraya kopyalayın.
+# ... (Orijinal dosyadaki ilk 3 fonksiyonu buraya yapıştırın) ...
 def analyze_output_with_gemini(api_key, tool_name, file_content):
     """
     Verilen bir aracın çıktısını Gemini API kullanarak analiz eder ve risk seviyesi belirler.
+    (Orijinal dosyadaki fonksiyonun aynısı)
     """
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-pro')
+        # Model adını güncelleyelim, gemini-2.5-pro yerine daha yaygın olan
+        # gemini-1.5-pro-latest kullanalım (veya sizinki neyse)
+        model = genai.GenerativeModel('gemini-1.5-pro-latest') 
         prompt = f"""
         Sen bir siber güvenlik uzmanısın ve bir sızma testi raporu hazırlıyorsun.
         Aşağıda '{tool_name}' adlı aracın ham çıktısı bulunmaktadır. Bu çıktıyı analiz ederek aşağıdaki formata uygun bir özet çıkar:
@@ -42,11 +52,12 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
 def create_executive_summary(api_key, all_analyses):
     """
     Tüm bireysel analizleri kullanarak bir yönetici özeti oluşturur.
+    (Orijinal dosyadaki fonksiyonun aynısı)
     """
     logging.info("[+] Yönetici özeti oluşturuluyor...")
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-pro')
+        model = genai.GenerativeModel('gemini-1.5-pro-latest')
         prompt = f"""
         Sen bir lider sızma testi uzmanısın. Aşağıda, farklı güvenlik araçlarının analiz sonuçları bulunmaktadır. 
         Bu sonuçların tamamını gözden geçirerek, hedef sistemin genel güvenlik durumu hakkında üst yönetime sunulacak, 
@@ -71,48 +82,45 @@ def create_executive_summary(api_key, all_analyses):
 def parse_risk_level(text):
     """
     Analiz metninden risk seviyesini çıkaran yardımcı fonksiyon.
+    (Orijinal dosyadaki fonksiyonun aynısı)
     """
-    # DÜZELTME: Regex'i daha esnek hale getirerek olası boşlukları ve format farklılıklarını tolere ediyoruz.
     match = re.search(r"\*\*3\. Risk Seviyesi:\s*\*\*([a-zA-ZğüşıöçĞÜŞİÖÇ]+)", text)
     if match:
         return match.group(1).lower().replace('ü', 'u').replace('ş', 's').replace('ı', 'i').replace('ö', 'o').replace('ğ', 'g').replace('ç', 'c')
     return "bilgilendirici"
 
-def generate_report(s3_client, bucket_name, s3_prefix, domain, api_key):
+
+# --- ANA DEĞİŞİKLİK BU FONKSİYONDA ---
+
+def generate_report(output_dir, domain, api_key):
     """
-    Belirtilen S3 prefix'indeki tüm .txt çıktılarını okur, Gemini ile analiz eder,
-    gelişmiş bir HTML raporu oluşturur ve bu raporu S3'e yükler.
-    Döndürdüğü değer: Raporun S3 anahtarı (key) veya None (hata durumunda).
+    Belirtilen yerel klasördeki (output_dir) tüm .txt çıktılarını okur, 
+    Gemini ile analiz eder, gelişmiş bir HTML raporu oluşturur ve bu raporu
+    YİNE AYNI KLASÖRE kaydeder.
+    Döndürdüğü değer: Raporun tam yerel yolu (path) veya None (hata durumunda).
     """
-    logging.info("\n[+] 5. Raporlama modülü başlatılıyor (S3 ile)...")
+    logging.info("\n[+] 5. Raporlama modülü başlatılıyor (Yerel Disk ile)...")
     
     analysis_results = {}
     raw_outputs = {}
 
-    logging.info("[+] S3'ten çıktılar okunuyor ve Gemini AI ile analiz ediliyor...")
+    logging.info("[+] Yerel çıktı dosyaları okunuyor ve Gemini AI ile analiz ediliyor...")
     try:
-        # S3'teki ilgili "klasördeki" (prefix) tüm nesneleri listele
-        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=s3_prefix)
-        
-        # Eğer prefix altında dosya yoksa (veya prefix yoksa)
-        if 'Contents' not in response:
-             logging.warning(f"[-] S3'te '{s3_prefix}' altında analiz edilecek dosya bulunamadı.")
-             # İsteğe bağlı olarak boş bir rapor oluşturulabilir veya None dönülebilir
-             # Şimdilik None dönüyoruz
-             return None
+        if not os.path.isdir(output_dir):
+            logging.warning(f"[-] Analiz edilecek klasör bulunamadı: {output_dir}")
+            return None
 
-        # Sadece .txt ile biten dosyaları al
-        output_files = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith('.txt')]
+        # S3 listeleme yerine os.listdir kullan
+        output_files = [f for f in os.listdir(output_dir) if f.endswith('.txt')]
 
-        for s3_key in tqdm(output_files, desc="Analiz İlerlemesi"):
-            # Dosya adından araç adını çıkar (örn: 'media/scan_outputs/1/nmap_ciktisi.txt' -> 'Nmap')
-            filename = os.path.basename(s3_key)
+        for filename in tqdm(output_files, desc="Analiz İlerlemesi"):
             tool_name = filename.replace('_ciktisi.txt', '').replace('_', ' ').title()
+            file_path = os.path.join(output_dir, filename)
             
             try:
-                # S3'ten dosyayı indir ve içeriğini oku
-                s3_object = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
-                content = s3_object['Body'].read().decode('utf-8', errors='ignore')
+                # S3 indirme yerine dosyayı yerelden oku
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
                 
                 raw_outputs[tool_name] = content
                 if not content.strip():
@@ -123,20 +131,16 @@ def generate_report(s3_client, bucket_name, s3_prefix, domain, api_key):
                 analysis = analyze_output_with_gemini(api_key, tool_name, content)
                 analysis_results[tool_name] = analysis
                 
-            except ClientError as e:
-                logging.error(f"[-] S3'ten '{s3_key}' okunurken hata: {e}")
-                analysis_results[tool_name] = f"**Hata**\n\n**Risk Seviyesi:** Bilgilendirici\n\nS3 dosyası okunurken bir sorun oluştu: {e}"
             except Exception as e:
-                logging.error(f"[-] '{tool_name}' analizi sırasında genel hata: {e}")
-                analysis_results[tool_name] = f"**Hata**\n\n**Risk Seviyesi:** Bilgilendirici\n\nAnaliz sırasında beklenmedik hata: {e}"
+                logging.error(f"[-] '{file_path}' okunurken/analiz edilirken hata: {e}")
+                analysis_results[tool_name] = f"**Hata**\n\n**Risk Seviyesi:** Bilgilendirici\n\nDosya okunurken bir sorun oluştu: {e}"
 
-    except ClientError as e:
-        logging.error(f"[-] S3'te '{s3_prefix}' listelenirken hata: {e}")
-        return None # Rapor oluşturma başarısız
     except Exception as e:
         logging.error(f"[-] Raporlama başlangıcında genel hata: {e}")
         return None
 
+    # (Risk sayımı, yönetici özeti ve chart URL oluşturma kodları
+    # S3 kullanmadığı için AYNEN KALIYOR)
     risk_counts = {"kritik": 0, "yüksek": 0, "orta": 0, "düşük": 0, "bilgilendirici": 0}
     for analysis in analysis_results.values():
         level = parse_risk_level(analysis)
@@ -177,8 +181,6 @@ def generate_report(s3_client, bucket_name, s3_prefix, domain, api_key):
     
     logging.info("[+] Gelişmiş HTML raporu oluşturuluyor...")
     
-    # --- HTML İçeriği Oluşturma (Aynı, sadece 'n' yerine '<br>' kontrolü önemli) ---
-    # Executive summary'deki olası newline'ları HTML <br> tag'ine çevir
     executive_summary_html = executive_summary.replace('\n', '<br>')
     
     html_content = f"""
@@ -190,20 +192,22 @@ def generate_report(s3_client, bucket_name, s3_prefix, domain, api_key):
         <title>HydraScan Sızma Testi Raporu - {domain}</title>
         <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
         <style>
-            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; }}
-            .container {{ max-width: 1200px; }}
-            .rapor-header {{ background-color: #343a40; color: white; padding: 40px 20px; text-align: center; border-radius: 8px; margin-bottom: 30px; }}
-            .rapor-header h1 {{ font-weight: 300; }}
-            .rapor-header p {{ font-size: 1.2rem; }}
-            .risk-card {{ border-left: 5px solid; margin-bottom: 20px; }}
-            .risk-kritik {{ border-color: #dc3545; }}
-            .risk-yüksek {{ border-color: #fd7e14; }}
-            .risk-orta {{ border-color: #ffc107; }}
-            .risk-düşük {{ border-color: #007bff; }}
-            .risk-bilgilendirici {{ border-color: #28a745; }}
-            .card-header button {{ text-decoration: none; color: #343a40; width: 100%; text-align: left; font-size: 1.1rem; font-weight: 500; }}
-            pre {{ background-color: #e9ecef; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }}
-            .chart-container {{ text-align: center; margin-bottom: 30px; }}
+            {"""
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; }
+            .container { max-width: 1200px; }
+            .rapor-header { background-color: #343a40; color: white; padding: 40px 20px; text-align: center; border-radius: 8px; margin-bottom: 30px; }
+            .rapor-header h1 { font-weight: 300; }
+            .rapor-header p { font-size: 1.2rem; }
+            .risk-card { border-left: 5px solid; margin-bottom: 20px; }
+            .risk-kritik { border-color: #dc3545; }
+            .risk-yüksek { border-color: #fd7e14; }
+            .risk-orta { border-color: #ffc107; }
+            .risk-düşük { border-color: #007bff; }
+            .risk-bilgilendirici { border-color: #28a745; }
+            .card-header button { text-decoration: none; color: #343a40; width: 100%; text-align: left; font-size: 1.1rem; font-weight: 500; }
+            pre { background-color: #e9ecef; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+            .chart-container { text-align: center; margin-bottom: 30px; }
+            """}
         </style>
     </head>
     <body>
@@ -234,9 +238,10 @@ def generate_report(s3_client, bucket_name, s3_prefix, domain, api_key):
 
     for i, (tool_name, analysis) in enumerate(analysis_results.items()):
         risk_level = parse_risk_level(analysis)
-        # Analizdeki ve Ham Çıktıdaki newline'ları <br>'ye çevir
         analysis_html = analysis.replace('\n', '<br>')
-        raw_output_html = raw_outputs.get(tool_name, "Ham çıktı bulunamadı.").replace('\n', '<br>') # Ham çıktıyı da ekleyelim
+        # Ham çıktıyı da (mümkünse) HTML'e uygun hale getir
+        raw_output_safe = raw_outputs.get(tool_name, "Ham çıktı bulunamadı.").replace('<', '&lt;').replace('>', '&gt;')
+        raw_output_html = raw_output_safe.replace('\n', '<br>')
         
         html_content += f"""
                 <div class="card risk-card risk-{risk_level}">
@@ -251,7 +256,7 @@ def generate_report(s3_client, bucket_name, s3_prefix, domain, api_key):
                         <div class="card-body">
                             {analysis_html}
                             <hr>
-                            <h5>Ham Çıktı:</h5>
+                            <h5>Ham Çıktı (Önizleme):</h5>
                             <pre><code style="white-space: pre-wrap;">{raw_output_html}</code></pre>
                         </div>
                     </div>
@@ -267,33 +272,21 @@ def generate_report(s3_client, bucket_name, s3_prefix, domain, api_key):
     </body>
     </html>
     """
+    
     report_filename = "pentest_raporu_v2.html"
-    report_s3_key = f"{s3_prefix}{report_filename}" # Tam S3 yolu (örn: media/scan_outputs/1/pentest_raporu_v2.html)
+    # S3 anahtarı yerine tam yerel dosya yolu
+    report_local_path = os.path.join(output_dir, report_filename)
 
-    # HTML içeriğini geçici bir dosyaya yaz
+    # HTML içeriğini S3'e yüklemek yerine yerel dosyaya yaz
     try:
-        with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix=".html") as temp_report:
-            temp_report_path = temp_report.name
-            temp_report.write(html_content)
+        with open(report_local_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
         
-        # Geçici HTML dosyasını S3'e yükle
-        s3_client.upload_file(temp_report_path, bucket_name, report_s3_key)
-        logging.info(f"\n[+] Rapor başarıyla S3'e yüklendi: {report_s3_key}")
+        logging.info(f"\n[+] Rapor başarıyla yerel diske kaydedildi: {report_local_path}")
         
-        # Geçici dosyayı sil
-        os.remove(temp_report_path)
+        # Başarılı olursa raporun tam yolunu döndür
+        return report_local_path
         
-        # Başarılı olursa raporun S3 anahtarını döndür
-        return report_s3_key
-        
-    except ClientError as e:
-        logging.error(f"[-] Rapor S3'e yüklenirken hata oluştu ({report_s3_key}): {e}")
-        # Geçici dosya oluşturulduysa silmeyi dene
-        if 'temp_report_path' in locals() and os.path.exists(temp_report_path):
-            os.remove(temp_report_path)
-        return None # Hata durumunda None döndür
     except Exception as e:
-        logging.error(f"[-] Rapor oluşturma/yükleme sırasında genel hata: {e}")
-        if 'temp_report_path' in locals() and os.path.exists(temp_report_path):
-            os.remove(temp_report_path)
-        return None
+        logging.error(f"[-] Rapor yerel diske yazılırken hata oluştu ({report_local_path}): {e}")
+        return None # Hata durumunda None döndür

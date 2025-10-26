@@ -1,0 +1,40 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_5:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'kiterunner scan http://www.mgorkemkilic.com/ -w /usr/share/wordlists/dirb/common.txt --ignore-status=404,400,500']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_5:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'kiterunner scan http://www.mgorkemkilic.com/ -w /usr/share/wordlists/dirb/common.txt --ignore-status=404,400,500']' returned non-zero exit status 1.
+
+Error: unknown flag: --ignore-status
+Usage:
+  kite scan INPUT [ -w wordlist.kite ] [flags]
+
+Flags:
+  -A, --assetnote-wordlist strings    use the wordlists from wordlist.assetnote.io. specify the type/name to use, e.g. apiroutes-210228. You can specify an additional maxlength to use only the first N values in the wordlist, e.g. apiroutes-210228;20000 will only use the first 20000 lines in that wordlist
+      --blacklist-domain strings      domains that are blacklisted for redirects. We will not follow redirects to these domains
+      --delay duration                delay to place inbetween requests to a single host
+      --disable-precheck              whether to skip host discovery
+      --fail-status-codes ints        which status codes blacklist as fail. if this is set, this will override success-status-codes
+      --filter-api strings            only scan apis matching this ksuid
+      --force-method string           whether to ignore the methods specified in the ogl file and force this method
+  -H, --header strings                headers to add to requests (default [x-forwarded-for: 127.0.0.1])
+  -h, --help                          help for scan
+      --ignore-length strings         a range of content length bytes to ignore. you can have multiple. e.g. 100-105 or 1234 or 123,34-53. This is inclusive on both ends
+      --kitebuilder-full-scan         perform a full scan without first performing a phase scan.
+  -w, --kitebuilder-list strings      ogl wordlist to use for scanning
+  -x, --max-connection-per-host int   max connections to a single host (default 3)
+  -j, --max-parallel-hosts int        max number of concurrent hosts to scan at once (default 50)
+      --max-redirects int             maximum number of redirects to follow (default 3)
+  -d, --preflight-depth int           when performing preflight checks, what directory depth do we attempt to check. 0 means that only the docroot is checked (default 1)
+      --profile-name string           name for profile output file
+      --progress                      a progress bar while scanning. by default enabled only on Stderr (default true)
+      --quarantine-threshold int      if the host return N consecutive hits, we quarantine the host as wildcard. Set to 0 to disable (default 10)
+      --success-status-codes ints     which status codes whitelist as success. this is the default mode
+  -t, --timeout duration              timeout to use on all requests (default 3s)
+      --user-agent string             user agent to use for requests (default "Chrome. Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
+      --wildcard-detection            can be set to false to disable wildcard redirect detection (default true)
+
+Global Flags:
+      --config string    config file (default is $HOME/.kiterunner.yaml)
+  -o, --output string    output format. can be json,text,pretty (default "pretty")
+  -q, --quiet            quiet mode. will mute unecessarry pretty text
+  -v, --verbose string   level of logging verbosity. can be error,info,debug,trace (default "info")
+
+Error: unknown flag: --ignore-status

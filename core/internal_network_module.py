@@ -1,24 +1,29 @@
+# core/internal_network_module.py (YENİ - YEREL HALİ)
+
 import os
 import logging
-from .docker_helper import run_command_in_docker
+# Importu düzeltelim
+from core.docker_helper import run_command_in_docker
 
-# DEĞİŞİKLİK: 'output_dir' parametresi S3 argümanlarıyla değişti
-def run_internal_tests(ip_range, image_name, s3_client, bucket_name, s3_prefix):
+# DEĞİŞİKLİK: 's3_client', 'bucket_name', 's3_prefix' parametreleri
+# 'output_dir' ile değişti.
+def run_internal_tests(ip_range, image_name, output_dir):
     """
-    İç ağ test araçlarını çalıştırır ve çıktıları S3'e yükler.
+    İç ağ test araçlarını çalıştırır ve çıktıları yerel output_dir içine kaydeder.
     """
     logging.info("\n[+] 5. İç Ağ Zafiyet Analizi modülü başlatılıyor...")
 
     commands = {
-        "responder_analizi.txt": "echo 'Responder analizi (manuel olarak çalıştırılmalı) bu IP aralığı için planlandı: {ip_range}'",
+        # Responder çıktısını dosyaya yazmak yerine not düşelim
+        "responder_analizi.txt": f"echo 'Responder analizi (manuel olarak çalıştırılmalı) bu IP aralığı için planlandı: {ip_range}'",
         "nmap_ic_ag_ciktisi.txt": f"nmap -T4 -F {ip_range}"
     }
 
     for output_filename, command in commands.items():
-        # DEĞİŞİKLİK: Artık yerel yol değil, S3 anahtarı (yolu) oluşturuyoruz
-        s3_key = f"{s3_prefix}{output_filename}"
+        # DEĞİŞİKLİK: Tam dosya yolu oluşturuyoruz
+        output_file_path = os.path.join(output_dir, output_filename)
         
-        # docker_helper'a S3 bilgilerini iletiyoruz
-        run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name)
+        # docker_helper'a yerel dosya yolunu iletiyoruz
+        run_command_in_docker(command, output_file_path, image_name)
 
     logging.info("\n[+] İç Ağ Zafiyet Analizi modülü tamamlandı.")

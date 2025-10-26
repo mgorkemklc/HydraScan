@@ -1,15 +1,20 @@
+# core/cloud_module.py (YENİ - YEREL HALİ)
+
 import os
 import logging
-from .docker_helper import run_command_in_docker
+# Importu düzeltelim
+from core.docker_helper import run_command_in_docker
 
-# DEĞİŞİKLİK: 'output_dir' parametresi S3 argümanlarıyla değişti
-def run_cloud_tests(access_key, secret_key, region, image_name, s3_client, bucket_name, s3_prefix):
+# DEĞİŞİKLİK: 's3_client', 'bucket_name', 's3_prefix' parametreleri
+# 'output_dir' ile değişti.
+# Ayrıca AWS anahtarları artık scan_data'dan gelecek.
+def run_cloud_tests(access_key, secret_key, region, image_name, output_dir):
     """
-    Bulut (AWS) ortamı test araçlarını çalıştırır ve çıktıları S3'e yükler.
+    Bulut (AWS) ortamı test araçlarını çalıştırır ve çıktıları yerel output_dir içine kaydeder.
     """
     logging.info("\n[+] 6. Bulut Ortamı (AWS) Zafiyet Analizi modülü başlatılıyor...")
 
-    # Docker konteynerine AWS anahtarlarını güvenli bir şekilde environment variable olarak geçir
+    # Docker konteynerine AWS anahtarlarını environment variable olarak geçir
     extra_docker_args = [
         "-e", f"AWS_ACCESS_KEY_ID={access_key}",
         "-e", f"AWS_SECRET_ACCESS_KEY={secret_key}",
@@ -23,10 +28,10 @@ def run_cloud_tests(access_key, secret_key, region, image_name, s3_client, bucke
     }
 
     for output_filename, command in commands.items():
-        # DEĞİŞİKLİK: Artık yerel yol değil, S3 anahtarı (yolu) oluşturuyoruz
-        s3_key = f"{s3_prefix}{output_filename}"
+        # DEĞİŞİKLİK: Tam dosya yolu oluşturuyoruz
+        output_file_path = os.path.join(output_dir, output_filename)
         
-        # docker_helper'a S3 bilgilerini VE extra_docker_args'ı iletiyoruz
-        run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name, extra_docker_args=extra_docker_args)
+        # docker_helper'a yerel dosya yolunu VE extra_docker_args'ı iletiyoruz
+        run_command_in_docker(command, output_file_path, image_name, extra_docker_args=extra_docker_args)
 
     logging.info("\n[+] Bulut Ortamı (AWS) Zafiyet Analizi modülü tamamlandı.")
