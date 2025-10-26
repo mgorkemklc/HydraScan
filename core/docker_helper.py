@@ -1,27 +1,34 @@
-# core/docker_helper.py (YENİ İÇERİK)
+# core/docker_helper.py (YENİ - YEREL DİSKE YAZAN HALİ)
 
 import subprocess
 import os
 import logging
-# 'tempfile' importu kaldırıldı
 
-def run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name, extra_docker_args=None):
+def run_command_in_docker(command, output_file_path, image_name, extra_docker_args=None):
     """
     Verilen komutu Docker içinde çalıştırır.
-    Çıktıyı (stdout/stderr) alır ve doğrudan S3'e bir metin nesnesi olarak yükler.
+    Çıktıyı (stdout/stderr) alır ve doğrudan yerel bir dosyaya yazar.
     
-    s3_key: S3'e hangi isimle kaydedileceği (örn: media/scan_outputs/1/nmap_ciktisi.txt)
+    output_file_path: Çıktının kaydedileceği tam dosya yolu 
+                      (örn: C:\\...\\scan_outputs\\scan_1\\nmap_ciktisi.txt)
     """
     
-    # DİKKAT: Bu fonksiyonun çalışması için, bu kodu çalıştıran konteynerin
-    # (yani Celery Worker'ın) Docker soketine erişimi olmalıdır.
-    # Bu, ECS Task Definition'da bir volume mount ile yapılır:
-    # /var/run/docker.sock:/var/run/docker.sock
+    # DİKKAT: Bu fonksiyonun çalışması için bu Python kodunu çalıştıran
+    # makinede Docker'ın kurulu ve çalışıyor olması gerekir.
     
     base_docker_command = [
         "docker", "run", "--rm", "--network=host",
-        # Volume mount (-v) komutu ECS'de çalışmayacağı için kaldırıldı
     ]
+    
+    # Docker komutuna mount edilmesi gereken yerel klasörler varsa ekle
+    # (örn: /output klasörünü bağlamak)
+    output_dir = os.path.dirname(output_file_path)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    # ÖNEMLİ: Docker'ın çıktı yazabilmesi için yerel klasörü mount etmeliyiz.
+    # Container içindeki /output yolunu, yerel makinedeki output_dir'e bağlıyoruz.
+    base_docker_command.extend(["-v", f"{os.path.abspath(output_dir)}:/output"])
 
     if extra_docker_args and isinstance(extra_docker_args, list):
         base_docker_command.extend(extra_docker_args)
@@ -34,6 +41,7 @@ def run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name, e
     full_output = ""
     
     try:
+        # Komutu çalıştır
         process = subprocess.run(
             full_docker_command, 
             check=True, 
@@ -50,24 +58,38 @@ def run_command_in_docker(command, s3_client, bucket_name, s3_key, image_name, e
         logging.error(f"[-] Komut çalıştırılırken bir hata oluştu: {e}")
     
     except FileNotFoundError as e:
-        # Bu hata genellikle Celery Worker konteynerinde Docker'ın kurulu olmadığını
-        # veya Docker soketine erişemediğini gösterir.
         error_message = f"--- KRİTİK HATA: DOCKER BULUNAMADI ---\n{e}\n" \
-                        "Bu komutu çalıştıran (Celery) konteynerin Docker'a erişimi olduğundan emin olun."
+                        "Bu komutu çalıştıran makinede Docker'ın kurulu ve çalışır olduğundan emin olun."
         full_output = error_message
         logging.error(error_message)
 
     finally:
-        # Çıktıyı geçici dosya yerine doğrudan S3'e 'put_object' ile yükle
+        # Çıktıyı S3 yerine YEREL DOSYAYA yaz
         try:
-            s3_client.put_object(
-                Bucket=bucket_name,
-                Key=s3_key,
-                Body=full_output.encode('utf-8') # Metni byte'a çevir
-            )
-            logging.info(f"[+] Çıktı S3'e yüklendi: {s3_key}")
+            # DİKKAT: Eğer komut (örn: apktool) çıktısını dosyaya kendi yazıyorsa
+            # bu bloğa gerek kalmayabilir, ancak nmap, whois gibi stdout
+            # üreten araçlar için bu blok şarttır.
             
-        except Exception as s3_e:
-            logging.error(f"[-] S3 yükleme hatası ({s3_key}): {s3_e}")
-
-# build_custom_image fonksiyonu kaldırıldı. İmajlar artık ECR'da.
+            # Eğer komut çıktısını /output/dosya_adi olarak kendi yazıyorsa
+            # bu bloğu atlayabiliriz, ancak biz genelde stdout'u yakalıyoruz.
+            # Güvenli olması için biz yine de yakalanan stdout'u dosyaya yazalım.
+            
+            # Eğer komut /output/dosya_adi'na yazıyorsa (örn: airodump),
+            # bu komutun stdout'u boş olabilir, bu durumda bu dosya da boş olur.
+            # Bu yüzden komutları /output/dosya_adi'na yönlendirmek daha iyi.
+            
+            # -------- YENİ YAKLAŞIM (Daha Basit) --------
+            # `docker_helper` çıktıyı dosyaya yazmasın.
+            # Komutun kendisi çıktıyı > /output/dosya_adi.txt olarak yazsın.
+            # Bu `docker_helper` sadece komutu çalıştırsın ve hata loglasın.
+            
+            # Geri alıyorum, eski yöntem (stdout'u yakalayıp dosyaya yazmak) 
+            # daha stabil, ona dönelim.
+            
+            with open(output_file_path, 'w', encoding='utf-8') as f:
+                f.write(full_output)
+            
+            logging.info(f"[+] Çıktı yerel diske yazıldı: {output_file_path}")
+            
+        except Exception as e:
+            logging.error(f"[-] Yerel çıktı dosyası yazılırken hata ({output_file_path}): {e}")

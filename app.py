@@ -71,20 +71,24 @@ class HydraScanApp(ctk.CTk):
         title_label = ctk.CTkLabel(main_frame, text="🐉 HydraScan", font=ctk.CTkFont(size=24, weight="bold"))
         title_label.pack(pady=10)
 
-        # --- 2. Sekmeli Alan (Yeni Tarama / Gösterge Paneli) ---
+        # --- 2. Durum/Log Alanı (En Alt) ---
+        # Hata almamak için log kutusunu sekmelerden ÖNCE tanımlıyoruz.
+        self.log_textbox = ctk.CTkTextbox(main_frame, height=150, state="disabled", text_color="#A9A9A9")
+        self.log_textbox.pack(fill="x", padx=5, pady=(0, 5))
+        
+        # --- 3. Sekmeli Alan (Yeni Tarama / Gösterge Paneli) ---
         self.tab_view = ctk.CTkTabview(main_frame)
         self.tab_view.pack(fill="both", expand=True, padx=5, pady=5)
         
         self.tab_yeni_tarama = self.tab_view.add("Yeni Tarama")
         self.tab_dashboard = self.tab_view.add("Gösterge Paneli")
         
-        # --- Sekmeleri Doldur ---
+        # --- 4. Sekmeleri Doldur ---
+        # Artık bu fonksiyonlar 'add_log'u güvenle çağırabilir
         self.create_yeni_tarama_tab(self.tab_yeni_tarama)
         self.create_dashboard_tab(self.tab_dashboard)
         
-        # --- 3. Durum/Log Alanı (En Alt) ---
-        self.log_textbox = ctk.CTkTextbox(main_frame, height=150, state="disabled", text_color="#A9A9A9")
-        self.log_textbox.pack(fill="x", padx=5, pady=(0, 5))
+        # --- 5. İlk Log Mesajı ---
         self.add_log("HydraScan başlatıldı. Lütfen 'Yeni Tarama' sekmesinden bir hedef belirleyin.")
 
 
@@ -300,7 +304,7 @@ class HydraScanApp(ctk.CTk):
             
         except Exception as e:
             self.add_log(f"Hata: Tarama başlatılamadı - {e}")
-            messagebox.showerror("Veritabanı Hatası", f"Tarama oluşturulurken bir hata oluştu: {e}")can_id)
+            messagebox.showerror("Veritabanı Hatası", f"Tarama oluşturulurken bir hata oluştu: {e}")
 
     def on_scan_complete(self, scan_id):
         """Tarama bittiğinde (thread'den çağrılır) arayüzü günceller."""
@@ -377,36 +381,68 @@ class HydraScanApp(ctk.CTk):
 
     def open_report(self):
         """'Raporu Aç' butonuna basıldığında ilgili HTML raporunu açar."""
-        selected_item = self.scan_tree.selection()[0]
-        #
-        # BURASI ÇOK ÖNEMLİ:
-        # Burada, seçili taramanın (scan_id) rapor dosya yolunu (report_file_path)
-        # veritabanından almanız ve `os.startfile()` veya `webbrowser.open()`
-        # ile açmanız gerekecek.
-        #
-        
-        # Sahte rapor yolu:
-        report_path = f"raporlar/google_com/report.html" # Bu yolu veritabanından almalısınız
-        self.add_log(f"Rapor açılıyor: {report_path}")
-        
-        # import webbrowser
-        # webbrowser.open(f"file://{os.path.realpath(report_path)}")
-        messagebox.showinfo("Rapor Aç", f"(Simülasyon) Rapor açılıyor:\n{report_path}")
-
-    def delete_scan(self):
-        """Seçili taramayı ve ilgili dosyaları siler."""
         try:
             selected_item = self.scan_tree.selection()[0]
-            if messagebox.askyesno("Tarama Sil", f"ID: {selected_item} olan taramayı silmek istediğinize emin misiniz?\nBu işlem geri alınamaz."):
-                #
-                # BURASI ÇOK ÖNEMLİ:
-                # 1. Veritabanından bu scan_id'ye ait kaydı silin (`database.py`)
-                # 2. Bu taramanın çıktı klasörünü (örn: `raporlar/scan_ID`) diskten silin (`shutil.rmtree`)
-                #
-                self.add_log(f"Tarama (ID: {selected_item}) silindi.")
-                self.populate_scan_list() # Listeyi yenile
+            scan_id = int(selected_item)
+            
+            # Rapor yolunu veritabanından al
+            scan_data = database.get_scan_by_id(scan_id)
+            if not scan_data:
+                messagebox.showerror("Hata", "Tarama veritabanında bulunamadı.")
+                return
+
+            report_path = scan_data['report_file_path']
+            
+            if not report_path or not os.path.exists(report_path):
+                self.add_log(f"Rapor dosyası bulunamadı: {report_path}")
+                messagebox.showwarning("Rapor Bulunamadı", f"Rapor dosyası '{report_path}' konumunda bulunamadı. Silinmiş olabilir.")
+                return
+
+            self.add_log(f"Rapor açılıyor: {report_path}")
+            
+            # Raporu varsayılan web tarayıcısında aç
+            webbrowser.open(f"file://{os.path.realpath(report_path)}")
+
+        except IndexError:
+            messagebox.showwarning("Hata", "Lütfen raporunu açmak için tamamlanmış bir tarama seçin.")
+        except Exception as e:
+            messagebox.showerror("Hata", f"Rapor açılırken bir hata oluştu: {e}")
+
+    def delete_scan(self):
+        """Seçili taramayı veritabanından ve diskten (çıktı klasörü) siler."""
+        try:
+            selected_item = self.scan_tree.selection()[0]
+            scan_id = int(selected_item)
+            
+            scan_data = database.get_scan_by_id(scan_id)
+            if not scan_data:
+                messagebox.showerror("Hata", "Tarama zaten silinmiş olabilir.")
+                self.populate_scan_list()
+                return
+
+            if messagebox.askyesno("Tarama Sil", f"ID: {scan_id} ({scan_data['target_full_domain']}) taramasını silmek istediğinize emin misiniz?\nBu işlem geri alınamaz."):
+                
+                # 1. Diskten çıktı klasörünü sil
+                output_dir = scan_data['output_directory']
+                if output_dir and os.path.isdir(output_dir):
+                    try:
+                        shutil.rmtree(output_dir)
+                        self.add_log(f"Çıktı klasörü silindi: {output_dir}")
+                    except Exception as e:
+                        self.add_log(f"Hata: Çıktı klasörü silinemedi: {e}")
+                        messagebox.showwarning("Dosya Hatası", f"Çıktı klasörü silinemedi: {e}\nKayıt veritabanından yine de silinecek.")
+
+                # 2. Veritabanından kaydı sil
+                database.delete_scan_from_db(scan_id)
+                self.add_log(f"Tarama (ID: {scan_id}) veritabanından silindi.")
+                
+                # 3. Listeyi yenile
+                self.populate_scan_list() 
+                
         except IndexError:
             messagebox.showwarning("Hata", "Lütfen silmek için bir tarama seçin.")
+        except Exception as e:
+            messagebox.showerror("Hata", f"Silme işlemi sırasında bir hata oluştu: {e}")
 
 
 # ==================================================================
