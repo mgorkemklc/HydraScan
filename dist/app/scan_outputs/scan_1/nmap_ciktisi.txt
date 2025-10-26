@@ -1,0 +1,5 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_1:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'nmap -sV -T4 www.mgorkemkilic.com']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_1:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'nmap -sV -T4 www.mgorkemkilic.com']' returned non-zero exit status 1.
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-10-26 19:32 UTC
+
