@@ -1,5 +1,0 @@
---- HATA OLUŞTU ---
-Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_5:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'gobuster dir -u http://www.mgorkemkilic.com -w /usr/share/wordlists/dirb/common.txt -q']
-Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_5:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'gobuster dir -u http://www.mgorkemkilic.com -w /usr/share/wordlists/dirb/common.txt -q']' returned non-zero exit status 1.
-
-2025/10/26 17:53:18 the server returns a status code that matches the provided options for non existing urls. http://www.mgorkemkilic.com/c19df828-b49f-4df2-bab3-3f1e13035931 => 301 (redirect to https://www.mgorkemkilic.com/c19df828-b49f-4df2-bab3-3f1e13035931) (Length: 166). Please exclude the response length or the status code or set the wildcard option.. To continue please exclude the status code or the length
