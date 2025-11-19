@@ -1,0 +1,5 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_2:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'whois www.mgorkemkilic.com']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_2:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'whois www.mgorkemkilic.com']' returned non-zero exit status 2.
+
+connect: Connection refused

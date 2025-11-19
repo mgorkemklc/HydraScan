@@ -1,0 +1,19 @@
+--- HATA OLUÞTU ---
+Komut çalýþtýrýlamadý: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\pentest yazýlým\\pentest_raporu_localhost_3000_20250820-110157:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'gobuster dir -u http://localhost:3000 -w /usr/share/wordlists/dirb/common.txt -t 50']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\pentest yazýlým\\pentest_raporu_localhost_3000_20250820-110157:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'gobuster dir -u http://localhost:3000 -w /usr/share/wordlists/dirb/common.txt -t 50']' returned non-zero exit status 1.
+===============================================================
+Gobuster v3.8
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://localhost:3000
+[+] Method:                  GET
+[+] Threads:                 50
+[+] Wordlist:                /usr/share/wordlists/dirb/common.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.8
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+
+2025/08/20 08:08:30 the server returns a status code that matches the provided options for non existing urls. http://localhost:3000/9e9a4cf4-d095-4bc6-80e9-1457decbea36 => 200 (Length: 80117). Please exclude the response length or the status code or set the wildcard option.. To continue please exclude the status code or the length

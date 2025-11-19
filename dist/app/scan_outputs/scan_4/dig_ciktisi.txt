@@ -1,0 +1,17 @@
+;; communications error to 192.168.65.7#53: timed out
+
+; <<>> DiG 9.20.11-4-Debian <<>> www.formabahcesi.com ANY
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 29788
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;www.formabahcesi.com.		IN	ANY
+
+;; Query time: 2052 msec
+;; SERVER: 192.168.65.7#53(192.168.65.7) (TCP)
+;; WHEN: Mon Nov 03 17:17:25 UTC 2025
+;; MSG SIZE  rcvd: 38
+
+

@@ -1,0 +1,26 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_1:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'nikto -h http://www.mgorkemkilic.com -Tuning 1,2,3,4,5']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_1:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'nikto -h http://www.mgorkemkilic.com -Tuning 1,2,3,4,5']' returned non-zero exit status 1.
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          34.120.137.41
++ Target Hostname:    www.mgorkemkilic.com
++ Target Port:        80
++ Start Time:         2025-10-30 19:02:01 (GMT0)
+---------------------------------------------------------------------------
++ Server: openresty
++ /: Retrieved via header: 1.1 google.
++ /: Retrieved x-powered-by header: HostingerWebsiteBuilder.
++ /: The anti-clickjacking X-Frame-Options header is not present. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
++ /: Drupal Link header found with value: <https://assets.zyrosite.com>; rel=preconnect; crossorigin, <https://userapp.zyrosite.com>; rel=preconnect; crossorigin, <https://fonts.googleapis.com>; rel=preconnect; crossorigin, <https://fonts.gstatic.com>; rel=preconnect; crossorigin, <https://cdn.zyrosite.com>; rel=preconnect; crossorigin. See: https://www.drupal.org/
++ /: Uncommon header 'platform' found, with contents: hostinger.
++ /: Uncommon header 'x-hostinger-node' found, with contents: gcp-usc1-builder-edge2.
++ /: Uncommon header 'x-hostinger-datacenter' found, with contents: gcp-usc1.
++ Root page / redirects to: https://www.mgorkemkilic.com/
++ /FnpQHggL/: The X-Content-Type-Options header is not set. This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/
++ No CGI Directories found (use '-C all' to force check all possible dirs)
++ 4286 requests: 0 error(s) and 8 item(s) reported on remote host
++ End Time:           2025-10-30 19:26:46 (GMT0) (1485 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested
+

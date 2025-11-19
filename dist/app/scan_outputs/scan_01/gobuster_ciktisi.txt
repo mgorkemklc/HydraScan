@@ -1,0 +1,5 @@
+--- HATA OLUÞTU ---
+Komut çalýþtýrýlamadý: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\pentest yazýlým\\pentest_raporu_avsarliayakkabi_com_20250820-101853:/output', 'pentest-araci-kali:v1.4', '/bin/bash', '-c', 'gobuster dir -u http://avsarliayakkabi.com -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 50']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\pentest yazýlým\\pentest_raporu_avsarliayakkabi_com_20250820-101853:/output', 'pentest-araci-kali:v1.4', '/bin/bash', '-c', 'gobuster dir -u http://avsarliayakkabi.com -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -t 50']' returned non-zero exit status 1.
+
+2025/08/20 07:18:55 wordlist file "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" does not exist: stat /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt: no such file or directory
