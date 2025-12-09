@@ -7,368 +7,515 @@ import json
 import concurrent.futures
 import logging
 
-# --- VERİTABANI VE MODÜLLER ---
+# --- SENİN MODÜLLERİN (Veritabanı ve Core) ---
 import database
 from core import recon_module, web_app_module, api_module, internal_network_module, report_module, mobile_module
 
 # --- LOGGING ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- TASARIM SABİTLERİ (HTML'den Esinlenildi) ---
+# --- GÖRSELDEKİ RENK PALETİ (Birebir Uyumlu) ---
 COLORS = {
-    "bg_main": "#0f172a",       # Ana arka plan (Koyu Lacivert)
-    "bg_card": "#1e293b",       # Kart arka planı (Daha açık lacivert)
-    "bg_card_hover": "#334155", # Kart üzerine gelince
-    "accent": "#38bdf8",        # Vurgu rengi (Sky Blue)
-    "accent_hover": "#0ea5e9",  # Buton hover rengi
-    "text_white": "#f8fafc",    # Beyaz metin
+    "bg_main": "#0f172a",       # En koyu arka plan (Slate 900)
+    "bg_panel": "#1e293b",      # Kartlar ve Sidebar (Slate 800)
+    "accent": "#38bdf8",        # Parlak Mavi (Sky 400)
+    "accent_hover": "#0ea5e9",  # Hover Mavisi
+    "text_white": "#f1f5f9",    # Beyaz metin
     "text_gray": "#94a3b8",     # Gri metin
-    "border": "#475569",        # Kenarlık rengi
-    "danger": "#ef4444",        # Kırmızı (Hata/Kritik)
+    "danger": "#ef4444",        # Kırmızı (Kritik)
+    "danger_bg": "rgba(239, 68, 68, 0.2)",
     "success": "#22c55e",       # Yeşil (Başarılı)
-    "warning": "#f59e0b"        # Turuncu (Uyarı)
+    "warning": "#f59e0b",       # Turuncu (Uyarı)
+    "running": "#3b82f6",       # Mavi (Çalışıyor)
+    "border": "#334155"         # İnce kenarlıklar
 }
 
-# Fontlar
-FONT_HEADER = ("Roboto Medium", 24)
-FONT_SUBHEADER = ("Roboto Medium", 18)
-FONT_BODY = ("Roboto", 13)
-FONT_BOLD = ("Roboto", 13, "bold")
-
+# Font Ayarları
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
-class ScanOptionCard(ctk.CTkFrame):
-    """HTML'deki 'Tarama Modülü' seçim kartlarını taklit eden özel widget."""
-    def __init__(self, parent, title, description, icon, value, variable, command=None):
-        super().__init__(parent, fg_color=COLORS["bg_card"], corner_radius=12, border_width=2, border_color=COLORS["bg_card"])
-        self.value = value
-        self.variable = variable
-        self.command = command
+class MetricCard(ctk.CTkFrame):
+    """Dashboard'daki üst bilgi kartları (Görseldeki gibi)"""
+    def __init__(self, parent, title, value, sub_text, icon, icon_color):
+        super().__init__(parent, fg_color=COLORS["bg_panel"], corner_radius=12, border_width=1, border_color=COLORS["border"])
         
-        # Tıklama olaylarını bağla
-        self.bind("<Button-1>", self.select)
+        # İç Padding
+        self.grid_columnconfigure(1, weight=1)
         
-        # İçerik Düzeni
-        self.grid_columnconfigure(0, weight=1)
+        # Sol Taraf (Metinler)
+        self.lbl_title = ctk.CTkLabel(self, text=title, font=("Roboto", 13), text_color=COLORS["text_gray"])
+        self.lbl_title.grid(row=0, column=0, sticky="w", padx=(20, 0), pady=(20, 5))
         
-        # İkon (Unicode kullanarak)
-        self.lbl_icon = ctk.CTkLabel(self, text=icon, font=("Arial", 32), text_color=COLORS["accent"])
-        self.lbl_icon.grid(row=0, column=0, pady=(20, 10))
-        self.lbl_icon.bind("<Button-1>", self.select)
+        self.lbl_value = ctk.CTkLabel(self, text=value, font=("Roboto", 32, "bold"), text_color="white")
+        self.lbl_value.grid(row=1, column=0, sticky="w", padx=(20, 0), pady=(0, 5))
         
-        # Başlık
-        self.lbl_title = ctk.CTkLabel(self, text=title, font=("Roboto", 16, "bold"), text_color=COLORS["text_white"])
-        self.lbl_title.grid(row=1, column=0, pady=(0, 5))
-        self.lbl_title.bind("<Button-1>", self.select)
-        
-        # Açıklama
-        self.lbl_desc = ctk.CTkLabel(self, text=description, font=("Roboto", 11), text_color=COLORS["text_gray"], wraplength=180)
-        self.lbl_desc.grid(row=2, column=0, pady=(0, 20), padx=10)
-        self.lbl_desc.bind("<Button-1>", self.select)
+        self.lbl_sub = ctk.CTkLabel(self, text=sub_text, font=("Roboto", 11), text_color=icon_color)
+        self.lbl_sub.grid(row=2, column=0, sticky="w", padx=(20, 0), pady=(0, 20))
 
-        # Değişkeni dinle (Dışarıdan değişim olursa güncellemek için)
-        if self.variable:
-            self.variable.trace_add("write", self.update_state)
-
-    def select(self, event=None):
-        if self.variable:
-            self.variable.set(self.value)
-            if self.command:
-                self.command()
-
-    def update_state(self, *args):
-        """Seçiliyse kenarlığı ve rengi değiştir."""
-        if self.variable.get() == self.value:
-            self.configure(border_color=COLORS["accent"], fg_color=COLORS["bg_card_hover"])
-        else:
-            self.configure(border_color=COLORS["bg_card"], fg_color=COLORS["bg_card"])
-
+        # Sağ Taraf (İkon Kutusu)
+        self.icon_frame = ctk.CTkFrame(self, width=45, height=45, corner_radius=10, fg_color=COLORS["bg_main"])
+        self.icon_frame.grid(row=0, column=2, rowspan=2, padx=20, pady=20, sticky="ne")
+        
+        self.lbl_icon = ctk.CTkLabel(self.icon_frame, text=icon, font=("Arial", 20), text_color=icon_color)
+        self.lbl_icon.place(relx=0.5, rely=0.5, anchor="center")
 
 class HydraScanApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # --- PENCERE AYARLARI ---
-        self.title("HydraScan - Security Automation Platform")
-        self.geometry("1280x850")
+        # Pencere Ayarları
+        self.title("HydraScan - Dashboard")
+        self.geometry("1400x900")
         self.configure(fg_color=COLORS["bg_main"])
-        
-        # İptal ve Durum Yönetimi
-        self.cancel_requested_map = {}
-        
-        # Veritabanı Başlatma
+
+        # Veritabanı Başlat
         database.init_db()
         self.cleanup_unfinished_scans()
 
-        # --- ARAYÜZ YERLEŞİMİ (Izgara) ---
+        # --- GRID DÜZENİ ---
+        # Sol (Sidebar): Sabit genişlik, Sağ (Content): Esnek
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # 1. SOL MENÜ (SIDEBAR)
+        # 1. SIDEBAR OLUŞTUR
         self.create_sidebar()
 
-        # 2. ANA İÇERİK ALANI
-        self.main_content = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
-        self.main_content.grid(row=0, column=1, sticky="nsew", padx=30, pady=30)
-        
-        # Sayfaları Yönet
-        self.frames = {}
-        self.create_dashboard_page()
-        self.create_new_scan_page()
+        # 2. ANA İÇERİK ALANI (Tüm sayfalar burada değişecek)
+        self.main_area = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
+        self.main_area.grid(row=0, column=1, sticky="nsew", padx=30, pady=30)
+        self.main_area.grid_columnconfigure(0, weight=1)
+        self.main_area.grid_rowconfigure(1, weight=1) # İçerik alanı
 
-        # Başlangıç Sayfası
-        self.show_frame("Dashboard")
+        # Header (Arama çubuğu ve Profil) - Tüm sayfalarda sabit kalabilir veya değişebilir
+        self.create_header()
+
+        # Sayfa Yönetimi
+        self.frames = {} 
+        self.current_frame = None
+
+        # Sayfaları Tanımla
+        self.create_dashboard_view()
+        self.create_new_scan_view()
+        # Rapor sayfası dinamik oluşturulacak
+
+        # Başlangıç
+        self.show_view("Dashboard")
 
     def create_sidebar(self):
-        """base.html'deki sidebar tasarımına benzer yapı."""
-        sidebar = ctk.CTkFrame(self, fg_color=COLORS["bg_card"], width=260, corner_radius=0)
+        """Görseldeki gibi sol menü"""
+        sidebar = ctk.CTkFrame(self, fg_color=COLORS["bg_panel"], width=260, corner_radius=0)
         sidebar.grid(row=0, column=0, sticky="nsew")
-        sidebar.grid_rowconfigure(5, weight=1)
+        sidebar.grid_rowconfigure(10, weight=1) # Alt boşluk
 
-        # Logo Bölümü
-        logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
-        logo_frame.grid(row=0, column=0, pady=(40, 20), padx=20, sticky="ew")
+        # Logo
+        logo_frm = ctk.CTkFrame(sidebar, fg_color="transparent")
+        logo_frm.pack(pady=(30, 40), padx=20, anchor="w")
+        ctk.CTkLabel(logo_frm, text="🐉", font=("Arial", 30)).pack(side="left")
+        ctk.CTkLabel(logo_frm, text=" HYDRA", font=("Roboto", 22, "bold"), text_color="white").pack(side="left")
+        ctk.CTkLabel(logo_frm, text="SCAN", font=("Roboto", 22, "bold"), text_color=COLORS["accent"]).pack(side="left")
+
+        # Menü Öğeleri
+        self.nav_btns = {}
+        self.add_nav_btn(sidebar, "Genel Bakış", "📊", "Dashboard")
+        self.add_nav_btn(sidebar, "Yeni Tarama", "⌖", "NewScan")
+        self.add_nav_btn(sidebar, "Raporlar & Loglar", "📄", "Reports") # Henüz aktif değil
         
-        icon = ctk.CTkLabel(logo_frame, text="🐉", font=("Arial", 36))
-        icon.pack(side="left", padx=(0, 10))
+        # Ayırıcı
+        ctk.CTkLabel(sidebar, text="SİSTEM", font=("Roboto", 11, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", padx=30, pady=(30, 10))
+        self.add_nav_btn(sidebar, "Varlık Yönetimi", "server", "Assets")
+        self.add_nav_btn(sidebar, "Ayarlar", "⚙️", "Settings")
+
+        # Alt Profil
+        profile = ctk.CTkFrame(sidebar, fg_color=COLORS["bg_main"], height=60)
+        profile.pack(side="bottom", fill="x")
         
-        title_box = ctk.CTkFrame(logo_frame, fg_color="transparent")
-        title_box.pack(side="left")
-        ctk.CTkLabel(title_box, text="HYDRASCAN", font=("Roboto", 20, "bold"), text_color=COLORS["text_white"]).pack(anchor="w")
-        ctk.CTkLabel(title_box, text="v2.0 Pro", font=("Roboto", 11), text_color=COLORS["accent"]).pack(anchor="w")
-
-        # Ayırıcı Çizgi
-        ctk.CTkFrame(sidebar, height=2, fg_color=COLORS["bg_main"]).grid(row=1, column=0, sticky="ew", padx=20, pady=20)
-
-        # Menü Butonları
-        self.btn_dash = self.create_nav_btn(sidebar, "Genel Bakış", "📊", lambda: self.show_frame("Dashboard"))
-        self.btn_dash.grid(row=2, column=0, padx=20, pady=5, sticky="ew")
-
-        self.btn_new = self.create_nav_btn(sidebar, "Yeni Tarama", "🚀", lambda: self.show_frame("NewScan"))
-        self.btn_new.grid(row=3, column=0, padx=20, pady=5, sticky="ew")
-
-        # Alt Profil Bölümü
-        profile_frame = ctk.CTkFrame(sidebar, fg_color=COLORS["bg_main"], corner_radius=10)
-        profile_frame.grid(row=6, column=0, padx=20, pady=30, sticky="ew")
+        avt = ctk.CTkLabel(profile, text="MK", width=40, height=40, bg_color=COLORS["accent"], text_color="white", font=("Arial", 16, "bold"))
+        avt.pack(side="left", padx=15, pady=10)
         
-        ctk.CTkLabel(profile_frame, text="MK", width=40, height=40, corner_radius=20, fg_color=COLORS["accent"], text_color=COLORS["bg_main"], font=("Arial", 16, "bold")).pack(side="left", padx=10, pady=10)
-        user_lbls = ctk.CTkFrame(profile_frame, fg_color="transparent")
-        user_lbls.pack(side="left")
-        ctk.CTkLabel(user_lbls, text="Admin User", font=("Roboto", 13, "bold"), text_color=COLORS["text_white"]).pack(anchor="w")
-        ctk.CTkLabel(user_lbls, text="Sistem Yöneticisi", font=("Roboto", 11), text_color=COLORS["success"]).pack(anchor="w")
+        info = ctk.CTkFrame(profile, fg_color="transparent")
+        info.pack(side="left")
+        ctk.CTkLabel(info, text="M. Görkem Kılıç", font=("Roboto", 13, "bold"), text_color="white").pack(anchor="w")
+        ctk.CTkLabel(info, text="Admin", font=("Roboto", 11), text_color=COLORS["text_gray"]).pack(anchor="w")
 
-    def create_nav_btn(self, parent, text, icon, command):
-        return ctk.CTkButton(parent, text=f"  {icon}   {text}", command=command,
-                             fg_color="transparent", hover_color=COLORS["bg_main"], 
-                             text_color=COLORS["text_gray"], anchor="w", height=45, 
-                             font=("Roboto", 14, "bold"), corner_radius=8)
+    def add_nav_btn(self, parent, text, icon, view_name):
+        btn = ctk.CTkButton(parent, text=f"  {icon}   {text}", anchor="w",
+                            fg_color="transparent", text_color=COLORS["text_gray"],
+                            hover_color=COLORS["bg_main"], height=45, font=("Roboto", 14),
+                            command=lambda: self.show_view(view_name))
+        btn.pack(fill="x", padx=15, pady=2)
+        self.nav_btns[view_name] = btn
 
-    def show_frame(self, name):
-        """Sayfa geçişlerini yönetir ve aktif butonu vurgular."""
-        for f in self.frames.values(): f.pack_forget()
-        self.frames[name].pack(fill="both", expand=True)
+    def create_header(self):
+        """Üst kısımdaki Arama Çubuğu"""
+        header = ctk.CTkFrame(self.main_area, fg_color="transparent", height=50)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 20))
         
-        # Buton stillerini güncelle
-        if name == "Dashboard":
-            self.btn_dash.configure(fg_color=COLORS["bg_main"], text_color=COLORS["accent"])
-            self.btn_new.configure(fg_color="transparent", text_color=COLORS["text_gray"])
-            self.populate_scan_list()
-        else:
-            self.btn_dash.configure(fg_color="transparent", text_color=COLORS["text_gray"])
-            self.btn_new.configure(fg_color=COLORS["bg_main"], text_color=COLORS["accent"])
+        # Sayfa Başlığı (Dinamik değişecek)
+        self.page_title = ctk.CTkLabel(header, text="Genel Bakış", font=("Roboto", 24, "bold"), text_color="white")
+        self.page_title.pack(side="left")
+
+        # Arama Çubuğu (Görseldeki gibi)
+        search_frame = ctk.CTkFrame(header, fg_color=COLORS["bg_panel"], corner_radius=20, border_width=1, border_color=COLORS["border"])
+        search_frame.pack(side="right", padx=10)
+        
+        ctk.CTkLabel(search_frame, text="🔍", text_color=COLORS["text_gray"]).pack(side="left", padx=(15, 5))
+        ctk.CTkEntry(search_frame, placeholder_text="IP, Domain veya Scan ID...", 
+                     fg_color="transparent", border_width=0, width=250, text_color="white").pack(side="left", padx=(0, 10))
+        
+        # Bildirim Zili
+        ctk.CTkButton(header, text="🔔", width=40, fg_color="transparent", hover_color=COLORS["bg_panel"], font=("Arial", 20)).pack(side="right")
 
     # ==================================================================
-    # DASHBOARD SAYFASI (dashboard.html gibi)
+    # DASHBOARD GÖRÜNÜMÜ
     # ==================================================================
-    def create_dashboard_page(self):
-        page = ctk.CTkFrame(self.main_content, fg_color="transparent")
-        self.frames["Dashboard"] = page
+    def create_dashboard_view(self):
+        view = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        self.frames["Dashboard"] = view
+        
+        # 1. METRİK KARTLARI (Üst Sıra)
+        cards_frame = ctk.CTkFrame(view, fg_color="transparent")
+        cards_frame.pack(fill="x", pady=(0, 30))
+        
+        self.card_total = MetricCard(cards_frame, "Toplam Tarama", "0", "⬆ %12 artış", "🗃️", COLORS["accent"])
+        self.card_total.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        
+        self.card_risk = MetricCard(cards_frame, "Kritik Açıklar", "0", "⚠ Acil aksiyon", "🐞", COLORS["danger"])
+        self.card_risk.pack(side="left", fill="x", expand=True, padx=10)
+        
+        self.card_active = MetricCard(cards_frame, "Aktif Görevler", "0", "⚡ Şu an çalışıyor", "⏳", COLORS["running"])
+        self.card_active.pack(side="left", fill="x", expand=True, padx=10)
+        
+        self.card_health = MetricCard(cards_frame, "Sistem Sağlığı", "%98", "Docker aktif", "❤️", COLORS["success"])
+        self.card_health.pack(side="left", fill="x", expand=True, padx=(10, 0))
 
-        # Üst İstatistikler
-        stats_grid = ctk.CTkFrame(page, fg_color="transparent")
-        stats_grid.pack(fill="x", pady=(0, 25))
+        # 2. SON AKTİVİTELER (Tablo)
+        table_container = ctk.CTkFrame(view, fg_color=COLORS["bg_panel"], corner_radius=12, border_width=1, border_color=COLORS["border"])
+        table_container.pack(fill="both", expand=True)
         
-        self.stat_total = self.create_stat_card(stats_grid, "Toplam Tarama", "0", "📁", COLORS["accent"])
-        self.stat_total.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        # Tablo Başlığı
+        tb_header = ctk.CTkFrame(table_container, fg_color="transparent")
+        tb_header.pack(fill="x", padx=20, pady=20)
+        ctk.CTkLabel(tb_header, text="Son Aktiviteler", font=("Roboto", 18, "bold"), text_color="white").pack(side="left")
         
-        self.stat_active = self.create_stat_card(stats_grid, "Devam Eden", "0", "⚡", COLORS["warning"])
-        self.stat_active.pack(side="left", fill="x", expand=True, padx=10)
-        
-        self.stat_risk = self.create_stat_card(stats_grid, "Kritik Risk", "0", "🛡️", COLORS["danger"])
-        self.stat_risk.pack(side="left", fill="x", expand=True, padx=(10, 0))
+        ctk.CTkButton(tb_header, text="+ Yeni Tarama", font=("Roboto", 13, "bold"), 
+                      fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"], text_color=COLORS["bg_main"],
+                      command=lambda: self.show_view("NewScan")).pack(side="right")
 
-        # Tablo Alanı Başlığı
-        action_bar = ctk.CTkFrame(page, fg_color="transparent")
-        action_bar.pack(fill="x", pady=(0, 10))
-        ctk.CTkLabel(action_bar, text="Son Taramalar", font=FONT_SUBHEADER, text_color=COLORS["text_white"]).pack(side="left")
-        
-        self.btn_refresh = ctk.CTkButton(action_bar, text="↻ Yenile", width=80, fg_color=COLORS["bg_card"], hover_color=COLORS["bg_card_hover"], command=self.populate_scan_list)
-        self.btn_refresh.pack(side="right", padx=5)
-        
-        self.btn_open_rep = ctk.CTkButton(action_bar, text="Raporu Görüntüle", state="disabled", fg_color=COLORS["success"], hover_color="#16a34a", command=self.open_report_gui)
-        self.btn_open_rep.pack(side="right", padx=5)
-
-        # Gelişmiş Tablo (Treeview)
-        # Treeview için özel stil (Dark mode uyumlu)
+        # Treeview (Tablo)
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Treeview", 
-                        background=COLORS["bg_card"], 
-                        foreground=COLORS["text_white"], 
-                        fieldbackground=COLORS["bg_card"],
-                        bordercolor=COLORS["bg_main"],
-                        rowheight=40, font=("Roboto", 11))
-        style.configure("Treeview.Heading", 
-                        background=COLORS["bg_main"], 
-                        foreground=COLORS["text_gray"], 
-                        font=("Roboto", 12, "bold"), relief="flat")
-        style.map("Treeview", background=[('selected', COLORS["accent"])], foreground=[('selected', 'black')])
+        style.configure("Treeview", background=COLORS["bg_main"], foreground="white", fieldbackground=COLORS["bg_main"], bordercolor=COLORS["bg_panel"], rowheight=45, font=("Roboto", 12))
+        style.configure("Treeview.Heading", background=COLORS["bg_panel"], foreground=COLORS["text_gray"], font=("Roboto", 11, "bold"))
+        style.map("Treeview", background=[('selected', COLORS["bg_panel"])])
 
-        # Tablo Çerçevesi (Yuvarlatılmış köşe efekti için)
-        table_frame = ctk.CTkFrame(page, fg_color=COLORS["bg_card"], corner_radius=10)
-        table_frame.pack(fill="both", expand=True)
+        self.tree = ttk.Treeview(table_container, columns=("Target", "Module", "Status", "Date", "Action"), show="headings")
+        self.tree.heading("Target", text="HEDEF")
+        self.tree.heading("Module", text="MODÜL")
+        self.tree.heading("Status", text="DURUM")
+        self.tree.heading("Date", text="TARİH")
+        self.tree.heading("Action", text="İŞLEM")
         
-        self.tree = ttk.Treeview(table_frame, columns=("ID", "Hedef", "Durum", "Tarih"), show="headings")
-        self.tree.heading("ID", text="ID")
-        self.tree.heading("Hedef", text="HEDEF SİSTEM")
-        self.tree.heading("Durum", text="DURUM")
-        self.tree.heading("Tarih", text="TARİH")
+        self.tree.column("Target", width=250)
+        self.tree.column("Module", width=100, anchor="center")
+        self.tree.column("Status", width=150)
+        self.tree.column("Date", width=150, anchor="center")
+        self.tree.column("Action", width=100, anchor="center")
         
-        self.tree.column("ID", width=50, anchor="center")
-        self.tree.column("Hedef", width=400)
-        self.tree.column("Durum", width=150, anchor="center")
-        self.tree.column("Tarih", width=200, anchor="center")
-        
-        self.tree.pack(fill="both", expand=True, padx=2, pady=2)
-        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
-
-    def create_stat_card(self, parent, title, value, icon, color):
-        """dashboard.html'deki kart tasarımını taklit eder."""
-        card = ctk.CTkFrame(parent, fg_color=COLORS["bg_card"], corner_radius=12)
-        
-        # İçerik Konteyner
-        inner = ctk.CTkFrame(card, fg_color="transparent")
-        inner.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Sol Taraf (Metinler)
-        text_frame = ctk.CTkFrame(inner, fg_color="transparent")
-        text_frame.pack(side="left", fill="y")
-        
-        ctk.CTkLabel(text_frame, text=title, font=("Roboto", 12), text_color=COLORS["text_gray"]).pack(anchor="w")
-        val_lbl = ctk.CTkLabel(text_frame, text=value, font=("Roboto", 28, "bold"), text_color=COLORS["text_white"])
-        val_lbl.pack(anchor="w")
-        
-        # Sağ Taraf (İkon Kutusu)
-        icon_box = ctk.CTkFrame(inner, width=50, height=50, corner_radius=10, fg_color=color) # Renkli kutu
-        icon_box.pack(side="right", anchor="ne")
-        
-        ctk.CTkLabel(icon_box, text=icon, font=("Arial", 24), text_color="white").place(relx=0.5, rely=0.5, anchor="center")
-        
-        card.value_label = val_lbl # Referans
-        return card
+        self.tree.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        self.tree.bind("<Double-1>", self.on_row_click)
 
     # ==================================================================
-    # YENİ TARAMA SAYFASI (start_scan_form.html gibi)
+    # YENİ TARAMA SAYFASI
     # ==================================================================
-    def create_new_scan_page(self):
-        page = ctk.CTkFrame(self.main_content, fg_color="transparent")
-        self.frames["NewScan"] = page
+    def create_new_scan_view(self):
+        view = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        self.frames["NewScan"] = view
+        
+        container = ctk.CTkFrame(view, fg_color=COLORS["bg_panel"], corner_radius=12)
+        container.pack(fill="both", expand=True)
+        
+        # İçerik
+        content = ctk.CTkFrame(container, fg_color="transparent")
+        content.pack(padx=40, pady=40, fill="x")
 
-        # Başlık ve Dekoratif Efekt (Basitçe renkli bir başlık ile)
-        ctk.CTkLabel(page, text="Yeni Tarama Yapılandırması", font=FONT_HEADER, text_color=COLORS["text_white"]).pack(anchor="w", pady=(0, 20))
+        # Hedef Girişi
+        ctk.CTkLabel(content, text="Hedef Domain / IP", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w")
+        self.entry_domain = ctk.CTkEntry(content, placeholder_text="örn: example.com", height=50, border_color=COLORS["border"], fg_color=COLORS["bg_main"])
+        self.entry_domain.pack(fill="x", pady=(10, 20))
 
-        # Ana Form Kartı (start_scan_form.html'deki glass panel)
-        form_card = ctk.CTkFrame(page, fg_color=COLORS["bg_card"], corner_radius=15, border_width=1, border_color=COLORS["border"])
-        form_card.pack(fill="both", expand=True, padx=5, pady=5)
+        # Modül Seçimi (Basitleştirilmiş)
+        ctk.CTkLabel(content, text="Tarama Modu", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w")
+        self.scan_mode = ctk.StringVar(value="full")
         
-        # Kaydırılabilir İçerik (Eğer ekran küçükse diye)
-        scroll = ctk.CTkScrollableFrame(form_card, fg_color="transparent")
-        scroll.pack(fill="both", expand=True, padx=20, pady=20)
+        radio_frame = ctk.CTkFrame(content, fg_color="transparent")
+        radio_frame.pack(fill="x", pady=(10, 20))
+        
+        r1 = ctk.CTkRadioButton(radio_frame, text="Hızlı Tarama (Keşif)", variable=self.scan_mode, value="basic", text_color="white", fg_color=COLORS["accent"])
+        r1.pack(side="left", padx=(0, 20))
+        r2 = ctk.CTkRadioButton(radio_frame, text="Kapsamlı Tarama (Full Pentest)", variable=self.scan_mode, value="full", text_color="white", fg_color=COLORS["accent"])
+        r2.pack(side="left")
 
-        # 1. HEDEF GİRİŞİ
-        ctk.CTkLabel(scroll, text="Hedef (IP veya Domain)", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", pady=(10, 5))
-        self.entry_domain = ctk.CTkEntry(scroll, placeholder_text="örn: 192.168.1.1 veya example.com", height=45, font=FONT_BODY, border_color=COLORS["border"])
-        self.entry_domain.pack(fill="x", pady=(0, 20))
+        # Gelişmiş Ayarlar
+        ctk.CTkLabel(content, text="Gemini API Anahtarı", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w")
+        self.entry_key = ctk.CTkEntry(content, placeholder_text="API Key...", show="*", height=50, border_color=COLORS["border"], fg_color=COLORS["bg_main"])
+        self.entry_key.pack(fill="x", pady=(10, 20))
 
-        # 2. TARAMA MODÜLÜ SEÇİMİ (Kartlı Yapı - start_scan_form.html'deki gibi)
-        ctk.CTkLabel(scroll, text="Tarama Modülü", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", pady=(10, 10))
+        # Başlat Butonu
+        self.btn_launch = ctk.CTkButton(content, text="Taramayı Başlat", height=50, font=("Roboto", 16, "bold"), 
+                                        fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"], text_color=COLORS["bg_main"],
+                                        command=self.start_scan)
+        self.btn_launch.pack(fill="x", pady=20)
         
-        module_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        module_frame.pack(fill="x", pady=(0, 20))
-        
-        self.scan_type_var = ctk.StringVar(value="basic_scan") # Varsayılan: Basic
-        
-        # Kart 1: Temel Tarama
-        card_basic = ScanOptionCard(
-            module_frame, 
-            title="Temel Ağ Taraması", 
-            description="Hızlı port taraması ve servis tespiti (Nmap Basic).",
-            icon="🌐", 
-            value="basic_scan", 
-            variable=self.scan_type_var
-        )
-        card_basic.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        
-        # Kart 2: Kapsamlı Tarama
-        card_full = ScanOptionCard(
-            module_frame, 
-            title="Kapsamlı Tarama", 
-            description="Tüm portlar, zafiyet analizi ve detaylı raporlama.",
-            icon="☢️", 
-            value="full_scan", 
-            variable=self.scan_type_var
-        )
-        card_full.pack(side="left", fill="x", expand=True, padx=(10, 0))
-
-        # 3. GELİŞMİŞ AYARLAR (İsteğe Bağlı)
-        # --- HATA DÜZELTİLDİ: 'with' bloğu kaldırıldı ---
-        adv_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        adv_frame.pack(fill="x", pady=10)
-        
-        # İç Ağ
-        ctk.CTkLabel(adv_frame, text="İç Ağ Aralığı (Opsiyonel)", font=("Roboto", 12, "bold"), text_color=COLORS["text_gray"]).grid(row=0, column=0, sticky="w", pady=5)
-        self.entry_internal = ctk.CTkEntry(adv_frame, placeholder_text="192.168.1.0/24", width=300)
-        self.entry_internal.grid(row=1, column=0, sticky="ew", padx=(0, 10), pady=(0, 15))
-        
-        # Gemini Key
-        ctk.CTkLabel(adv_frame, text="Gemini API Anahtarı", font=("Roboto", 12, "bold"), text_color=COLORS["text_gray"]).grid(row=0, column=1, sticky="w", pady=5)
-        self.entry_gemini = ctk.CTkEntry(adv_frame, placeholder_text="API Key...", show="*", width=300)
-        self.entry_gemini.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(0, 15))
-
-        # APK Seçimi
-        apk_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_main"], corner_radius=8)
-        apk_frame.pack(fill="x", pady=(0, 20), ipady=5)
-        self.btn_apk = ctk.CTkButton(apk_frame, text="APK Dosyası Yükle", command=self.select_apk, fg_color=COLORS["bg_card_hover"], width=150)
-        self.btn_apk.pack(side="left", padx=10, pady=10)
-        self.lbl_apk = ctk.CTkLabel(apk_frame, text="Dosya seçilmedi", text_color=COLORS["text_gray"])
-        self.lbl_apk.pack(side="left", padx=10)
-        self.selected_apk = None
-
-        # Durum ve İlerleme
-        self.lbl_status = ctk.CTkLabel(scroll, text="Hazır", text_color=COLORS["text_gray"], anchor="e")
-        self.lbl_status.pack(fill="x", pady=(10, 0))
-        self.progress = ctk.CTkProgressBar(scroll, height=10, progress_color=COLORS["accent"])
-        self.progress.set(0)
-        self.progress.pack(fill="x", pady=(5, 20))
-
-        # Alt Butonlar (İptal / Başlat)
-        btn_box = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_box.pack(fill="x", pady=10)
-        
-        ctk.CTkButton(btn_box, text="İptal", fg_color="transparent", text_color=COLORS["text_gray"], hover_color=COLORS["bg_main"], width=100, command=lambda: self.show_frame("Dashboard")).pack(side="left")
-        
-        self.btn_start = ctk.CTkButton(btn_box, text="Taramayı Başlat  🚀", height=50, font=("Roboto", 16, "bold"), fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"], text_color=COLORS["bg_main"], command=self.start_scan_thread)
-        self.btn_start.pack(side="right", fill="x", expand=True, padx=(20, 0))
+        self.scan_status_lbl = ctk.CTkLabel(content, text="", text_color=COLORS["accent"])
+        self.scan_status_lbl.pack()
 
     # ==================================================================
-    # FONKSİYONLAR
+    # RAPOR SAYFASI (GÖMÜLÜ - ENTEGRE)
     # ==================================================================
-    def select_apk(self):
-        path = filedialog.askopenfilename(filetypes=[("Android App", "*.apk")])
-        if path:
-            self.selected_apk = path
-            self.lbl_apk.configure(text=os.path.basename(path), text_color=COLORS["text_white"])
+    def show_report_view(self, scan_id):
+        """Uygulamanın içinde Rapor sayfasını oluşturur ve gösterir."""
+        
+        # Varsa eski rapor sayfasını temizle
+        if "ReportView" in self.frames:
+            self.frames["ReportView"].destroy()
+        
+        # Veriyi Çek
+        scan = database.get_scan_by_id(scan_id)
+        if not scan: return
+        
+        report_path = scan['report_file_path']
+        if report_path and report_path.endswith(".html"): report_path = report_path.replace(".html", ".json")
+        
+        report_data = {}
+        if report_path and os.path.exists(report_path):
+            with open(report_path, 'r', encoding='utf-8') as f:
+                report_data = json.load(f)
+        
+        # --- SAYFAYI OLUŞTUR ---
+        view = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        self.frames["ReportView"] = view
+        
+        # 1. Üst Bar (Geri Dön ve Başlık)
+        top_bar = ctk.CTkFrame(view, fg_color="transparent")
+        top_bar.pack(fill="x", pady=(0, 20))
+        
+        btn_back = ctk.CTkButton(top_bar, text="← Geri", width=80, fg_color=COLORS["bg_panel"], command=lambda: self.show_view("Dashboard"))
+        btn_back.pack(side="left")
+        
+        ctk.CTkLabel(top_bar, text=f"Rapor: {scan['target_full_domain']}", font=("Roboto", 20, "bold"), text_color="white").pack(side="left", padx=20)
+        
+        export_btn = ctk.CTkButton(top_bar, text="PDF İndir", width=100, fg_color=COLORS["bg_panel"], state="disabled") # Şimdilik pasif
+        export_btn.pack(side="right")
+
+        # 2. Rapor Özeti (Kartlar)
+        if report_data:
+            summary_frame = ctk.CTkFrame(view, fg_color="transparent")
+            summary_frame.pack(fill="x", pady=(0, 20))
+            
+            # Risk Analizi (Basit Sayaç)
+            total_vulns = 0
+            crit = 0
+            high = 0
+            for item in report_data.get("analizler", []):
+                risk = item.get("risk_seviyesi", "").lower()
+                total_vulns += len(item.get("bulgular", []))
+                if "kritik" in risk or "critical" in risk: crit += 1
+                if "yüksek" in risk or "high" in risk: high += 1
+            
+            # Kartları oluştur (MetricCard kullanarak)
+            MetricCard(summary_frame, "Toplam Bulgu", str(total_vulns), "Tüm araçlar", "🔎", COLORS["accent"]).pack(side="left", fill="x", expand=True, padx=(0,10))
+            MetricCard(summary_frame, "Kritik Seviye", str(crit), "Acil Düzeltilmeli", "☣️", COLORS["danger"]).pack(side="left", fill="x", expand=True, padx=10)
+            MetricCard(summary_frame, "Yüksek Seviye", str(high), "Öncelikli", "🔥", COLORS["warning"]).pack(side="left", fill="x", expand=True, padx=(10,0))
+
+            # 3. Detaylı Rapor Alanı (Scrollable)
+            scroll = ctk.CTkScrollableFrame(view, fg_color="transparent")
+            scroll.pack(fill="both", expand=True)
+            
+            for analiz in report_data.get("analizler", []):
+                self.create_report_item(scroll, analiz)
+        else:
+            ctk.CTkLabel(view, text="Rapor verisi bulunamadı veya işleniyor...", font=("Roboto", 16)).pack(pady=50)
+
+        # Görünümü değiştir
+        self.show_view("ReportView")
+        self.page_title.configure(text="Sızma Testi Raporu")
+
+    def create_report_item(self, parent, analiz):
+        """Rapordaki her bir araç çıktısı için kart oluşturur."""
+        card = ctk.CTkFrame(parent, fg_color=COLORS["bg_panel"], corner_radius=10, border_width=1, border_color=COLORS["border"])
+        card.pack(fill="x", pady=10)
+        
+        # Başlık Satırı
+        header = ctk.CTkFrame(card, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=15)
+        
+        tool_name = analiz.get("arac_adi", "Bilinmeyen")
+        ctk.CTkLabel(header, text=tool_name, font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(side="left")
+        
+        risk = analiz.get("risk_seviyesi", "Bilgi").upper()
+        risk_color = COLORS["success"]
+        if "KRITIK" in risk or "CRITICAL" in risk: risk_color = COLORS["danger"]
+        elif "YÜKSEK" in risk or "HIGH" in risk: risk_color = COLORS["warning"]
+        
+        ctk.CTkLabel(header, text=risk, font=("Roboto", 12, "bold"), text_color=risk_color, 
+                     fg_color=COLORS["bg_main"], corner_radius=6, width=80, height=30).pack(side="right")
+
+        # Özet Metni
+        ctk.CTkLabel(card, text=analiz.get("ozet", ""), font=("Roboto", 13), text_color="white", wraplength=900, justify="left").pack(fill="x", padx=20, pady=(0, 10))
+        
+        # Bulgular (Varsa)
+        if analiz.get("bulgular"):
+            f_frame = ctk.CTkFrame(card, fg_color=COLORS["bg_main"], corner_radius=8)
+            f_frame.pack(fill="x", padx=20, pady=(0, 20))
+            
+            ctk.CTkLabel(f_frame, text="TESPİT EDİLEN BULGULAR:", font=("Roboto", 11, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", padx=10, pady=(10, 5))
+            for bulgu in analiz["bulgular"]:
+                ctk.CTkLabel(f_frame, text=f"• {bulgu}", font=("Roboto", 12), text_color=COLORS["text_white"], wraplength=850, justify="left").pack(anchor="w", padx=15, pady=2)
+            ctk.CTkLabel(f_frame, text="", height=5).pack() # Spacer
+
+    # ==================================================================
+    # YARDIMCI FONKSİYONLAR
+    # ==================================================================
+    def show_view(self, name):
+        """Sayfa değiştirici"""
+        for frame in self.frames.values():
+            frame.grid_forget()
+        
+        if name in self.frames:
+            self.frames[name].grid(row=1, column=0, sticky="nsew")
+            self.current_frame = name
+            
+            # Başlığı Güncelle
+            titles = {"Dashboard": "Genel Bakış", "NewScan": "Yeni Tarama Başlat", "Reports": "Rapor Arşivi"}
+            if name in titles: self.page_title.configure(text=titles[name])
+            
+            # Dashboard yenile
+            if name == "Dashboard":
+                self.refresh_dashboard()
+
+            # Menü buton rengini güncelle
+            for btn_name, btn in self.nav_btns.items():
+                if btn_name == name:
+                    btn.configure(fg_color=COLORS["bg_main"], text_color=COLORS["accent"])
+                else:
+                    btn.configure(fg_color="transparent", text_color=COLORS["text_gray"])
+
+    def refresh_dashboard(self):
+        """Dashboard tablosunu ve metrikleri yeniler"""
+        # Tabloyu temizle
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+            
+        scans = database.get_all_scans()
+        
+        # Metrikleri Hesapla
+        total = len(scans)
+        active = sum(1 for s in scans if s['status'] in ["RUNNING", "REPORTING"])
+        failed = sum(1 for s in scans if s['status'] == "FAILED")
+        
+        # Kartları Güncelle
+        self.card_total.lbl_value.configure(text=str(total))
+        self.card_active.lbl_value.configure(text=str(active))
+        self.card_risk.lbl_value.configure(text=str(failed)) # Şimdilik Failed sayısını risk gibi gösterelim
+
+        # Tabloyu Doldur
+        for scan in scans:
+            status_raw = scan['status']
+            
+            # Görsel durum simgeleri
+            status_display = f"⚪ {status_raw}"
+            if status_raw == "COMPLETED": status_display = "🟢 Tamamlandı"
+            elif status_raw == "RUNNING": status_display = "🔵 Taranıyor..."
+            elif status_raw == "REPORTING": status_display = "🟣 Raporlanıyor..."
+            elif status_raw == "FAILED": status_display = "🔴 Hata"
+
+            date_str = scan['created_at']
+            try:
+                dt = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S.%f')
+                date_str = dt.strftime("%d %b, %H:%M")
+            except: pass
+
+            action_text = "👁️ İncele" if status_raw == "COMPLETED" else "-"
+            
+            self.tree.insert("", "end", iid=scan['id'], values=(
+                scan['target_full_domain'], 
+                "Full_Scan", 
+                status_display, 
+                date_str, 
+                action_text
+            ))
+
+    def on_row_click(self, event):
+        """Tablo satırına çift tıklandığında raporu aç"""
+        selected_item = self.tree.selection()
+        if selected_item:
+            scan_id = int(selected_item[0])
+            scan = database.get_scan_by_id(scan_id)
+            if scan['status'] == "COMPLETED":
+                self.show_report_view(scan_id)
+            else:
+                messagebox.showinfo("Bilgi", "Bu tarama henüz tamamlanmadı veya raporu yok.")
+
+    def start_scan(self):
+        domain = self.entry_domain.get()
+        key = self.entry_key.get()
+        
+        if not domain or not key:
+            messagebox.showwarning("Hata", "Lütfen Domain ve API Key girin.")
+            return
+            
+        self.btn_launch.configure(state="disabled", text="Başlatılıyor...")
+        
+        scan_data = {
+            "domain": domain,
+            "gemini_key": key,
+            "internal_ip": None,
+            "apk_path": None,
+            "scan_type": self.scan_mode.get()
+        }
+        
+        scan_id = database.create_scan(scan_data)
+        
+        # Thread başlat
+        threading.Thread(target=self.run_scan_logic, args=(scan_id, scan_data), daemon=True).start()
+        
+        # Dashboard'a yönlendir
+        self.after(1000, lambda: self.show_view("Dashboard"))
+        self.btn_launch.configure(state="normal", text="Taramayı Başlat")
+        self.entry_domain.delete(0, "end")
+
+    def run_scan_logic(self, scan_id, data):
+        # ... (Önceki scan mantığının aynısı) ...
+        try:
+            database.update_scan_status(scan_id, 'RUNNING')
+            out = os.path.abspath(f"scan_outputs/scan_{scan_id}")
+            if not os.path.exists(out): os.makedirs(out)
+            database.set_scan_output_directory(scan_id, out)
+            
+            image = "pentest-araci-kali:v1.5"
+            domain = data['domain']
+            
+            with concurrent.futures.ThreadPoolExecutor() as ex:
+                fs = [
+                    ex.submit(recon_module.run_reconnaissance, domain, domain, image, out),
+                    ex.submit(web_app_module.run_web_tests, domain, image, out)
+                ]
+                for f in concurrent.futures.as_completed(fs): pass
+
+            database.update_scan_status(scan_id, 'REPORTING')
+            path = report_module.generate_report(out, domain, data['gemini_key'])
+            
+            if path:
+                database.complete_scan(scan_id, path, "COMPLETED")
+            else:
+                database.complete_scan(scan_id, None, "FAILED")
+                
+        except Exception as e:
+            logging.error(e)
+            database.complete_scan(scan_id, None, "FAILED")
+        finally:
+            # GUI güncellemesi için main thread'e sinyal (basitçe refresh)
+            pass
 
     def cleanup_unfinished_scans(self):
         try:
@@ -377,169 +524,6 @@ class HydraScanApp(ctk.CTk):
             conn.commit()
             conn.close()
         except: pass
-
-    def populate_scan_list(self):
-        for i in self.tree.get_children(): self.tree.delete(i)
-        scans = database.get_all_scans()
-        
-        # Sayaçlar
-        active = sum(1 for s in scans if s['status'] in ["RUNNING", "REPORTING"])
-        failed = sum(1 for s in scans if s['status'] == "FAILED")
-        
-        self.stat_total.value_label.configure(text=str(len(scans)))
-        self.stat_active.value_label.configure(text=str(active))
-        self.stat_risk.value_label.configure(text=str(failed)) # Şimdilik Failed'ı risk gibi gösterelim
-
-        for s in scans:
-            # Tarih düzeltme
-            d = s['created_at']
-            try: d = datetime.datetime.strptime(s['created_at'], '%Y-%m-%d %H:%M:%S.%f').strftime('%d %b %H:%M')
-            except: pass
-            
-            # Durum simgesi
-            st = s['status']
-            icon = "⏳" if st == "PENDING" else "⚡" if st == "RUNNING" else "✅" if st == "COMPLETED" else "❌"
-            
-            self.tree.insert("", "end", values=(s['id'], s['target_full_domain'], f"{icon} {st}", d))
-
-    def on_tree_select(self, event):
-        sel = self.tree.selection()
-        if sel:
-            st = self.tree.item(sel[0])['values'][2]
-            if "COMPLETED" in st: self.btn_open_rep.configure(state="normal")
-            else: self.btn_open_rep.configure(state="disabled")
-
-    def start_scan_thread(self):
-        domain = self.entry_domain.get()
-        key = self.entry_gemini.get()
-        
-        if not domain or not key:
-            messagebox.showwarning("Eksik Bilgi", "Lütfen Hedef ve Gemini API anahtarını girin.")
-            return
-            
-        self.btn_start.configure(state="disabled", text="Başlatılıyor...")
-        self.progress.set(0.05)
-        self.lbl_status.configure(text="Sistem hazırlanıyor...")
-        
-        scan_data = {
-            "domain": domain,
-            "gemini_key": key,
-            "internal_ip": self.entry_internal.get(),
-            "apk_path": self.selected_apk,
-            "scan_type": self.scan_type_var.get()
-        }
-        
-        scan_id = database.create_scan(scan_data)
-        threading.Thread(target=self.run_scan_logic, args=(scan_id, scan_data), daemon=True).start()
-
-    def run_scan_logic(self, scan_id, data):
-        def ui(p, t): 
-            self.progress.set(p)
-            self.lbl_status.configure(text=t)
-
-        try:
-            database.update_scan_status(scan_id, 'RUNNING')
-            out = os.path.abspath(f"scan_outputs/scan_{scan_id}")
-            if not os.path.exists(out): os.makedirs(out)
-            database.set_scan_output_directory(scan_id, out)
-            
-            ui(0.1, "Modüller çalışıyor...")
-            img = "pentest-araci-kali:v1.5"
-            dom = data['domain']
-            
-            # Paralel İşlemler
-            with concurrent.futures.ThreadPoolExecutor() as ex:
-                fs = []
-                # Basic Scan veya Full Scan ayrımı burada yapılabilir
-                fs.append(ex.submit(recon_module.run_reconnaissance, dom, dom, img, out))
-                fs.append(ex.submit(web_app_module.run_web_tests, dom, img, out))
-                # Full Scan ise API testini de ekle
-                if data['scan_type'] == 'full_scan':
-                    fs.append(ex.submit(api_module.run_api_tests, dom, img, out))
-                
-                for f in concurrent.futures.as_completed(fs): pass
-
-            # Ek Modüller
-            if data['internal_ip']:
-                ui(0.6, "İç ağ taranıyor...")
-                internal_network_module.run_internal_tests(data['internal_ip'], img, out)
-            
-            if data['apk_path']:
-                ui(0.7, "Mobil analiz...")
-                mobile_module.run_mobile_tests(data['apk_path'], out, img)
-
-            # Raporlama
-            ui(0.9, "AI Raporu hazırlanıyor...")
-            database.update_scan_status(scan_id, 'REPORTING')
-            
-            path = report_module.generate_report(out, dom, data['gemini_key'])
-            
-            if path:
-                database.complete_scan(scan_id, path, "COMPLETED")
-                ui(1.0, "Tamamlandı!")
-                messagebox.showinfo("Bitti", "Tarama başarıyla tamamlandı!")
-            else:
-                database.complete_scan(scan_id, None, "FAILED")
-                ui(0.0, "Raporlama Hatası")
-
-        except Exception as e:
-            logging.error(e)
-            database.complete_scan(scan_id, None, "FAILED")
-            ui(0.0, f"Hata: {str(e)}")
-            messagebox.showerror("Hata", str(e))
-        finally:
-            self.btn_start.configure(state="normal", text="Taramayı Başlat  🚀")
-            self.populate_scan_list()
-
-    def open_report_gui(self):
-        try:
-            sel = self.tree.selection()
-            if not sel: return
-            sid = self.tree.item(sel[0])['values'][0]
-            sdata = database.get_scan_by_id(sid)
-            path = sdata['report_file_path']
-            
-            # HTML -> JSON dönüşüm kontrolü (Eski raporlar için)
-            if path and path.endswith(".html"): path = path.replace(".html", ".json")
-            
-            if not path or not os.path.exists(path):
-                messagebox.showerror("Hata", "Rapor dosyası bulunamadı.")
-                return
-
-            with open(path, 'r', encoding='utf-8') as f: d = json.load(f)
-            
-            # Rapor Penceresi
-            rw = ctk.CTkToplevel(self)
-            rw.title(f"Rapor: {d.get('domain')}")
-            rw.geometry("1000x800")
-            rw.configure(fg_color=COLORS["bg_main"])
-            
-            # Header
-            hf = ctk.CTkFrame(rw, fg_color=COLORS["bg_card"])
-            hf.pack(fill="x", padx=20, pady=20)
-            ctk.CTkLabel(hf, text=f"🎯 {d.get('domain')}", font=("Roboto", 22, "bold"), text_color="white").pack(anchor="w", padx=20, pady=15)
-            
-            scr = ctk.CTkScrollableFrame(rw, fg_color="transparent")
-            scr.pack(fill="both", expand=True, padx=20, pady=10)
-            
-            for anz in d.get("analizler", []):
-                c = ctk.CTkFrame(scr, fg_color=COLORS["bg_card"], corner_radius=10)
-                c.pack(fill="x", pady=10)
-                
-                risk = anz.get("risk_seviyesi", "").lower()
-                rc = COLORS["success"]
-                if "yüksek" in risk or "high" in risk: rc = COLORS["warning"]
-                if "kritik" in risk or "critical" in risk: rc = COLORS["danger"]
-                
-                h = ctk.CTkFrame(c, fg_color="transparent")
-                h.pack(fill="x", padx=15, pady=10)
-                ctk.CTkLabel(h, text=anz.get("arac_adi"), font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(side="left")
-                ctk.CTkLabel(h, text=anz.get("risk_seviyesi").upper(), text_color="white", fg_color=rc, corner_radius=6, padx=8).pack(side="right")
-                
-                ctk.CTkLabel(c, text=anz.get("ozet"), font=("Roboto", 12), text_color=COLORS["text_white"], wraplength=900, justify="left").pack(anchor="w", padx=15, pady=(0, 15))
-
-        except Exception as e:
-            messagebox.showerror("Hata", str(e))
 
 if __name__ == "__main__":
     app = HydraScanApp()

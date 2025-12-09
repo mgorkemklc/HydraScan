@@ -12,7 +12,7 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
     """
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-pro') # Hızlı model
+        model = genai.GenerativeModel('gemini-2.5-flash') # Hızlı model
         
         # PROMPT'U DEĞİŞTİRİYORUZ: HTML yerine JSON istiyoruz.
         prompt = f"""
