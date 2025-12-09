@@ -1,678 +1,546 @@
-# app.py (en üstteki importlar)
 import customtkinter as ctk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, messagebox, filedialog
 import os
 import datetime
-import database  # <-- BU SATIRI EKLEYİN
-import threading # <-- BU SATIRI EKLEYİN
-import shutil    # <-- BU SATIRI EKLEYİN
-import webbrowser # <-- BU SATIRI EKLEYİN
+import threading
+import json
 import concurrent.futures
 import logging
 
-# --- HYDRASCAN CORE MODÜLLERİNİ IMPORT EDİN ---
-# (Bu dosyaların 'core' klasöründe olduğunu varsayıyoruz)
-from core import recon_module
-from core import web_app_module
-from core import api_module
-from core import internal_network_module
-from core import cloud_module # (Bunu da ekleyebilirsiniz)
-from core import mobile_module # (Bunu da ekleyebilirsiniz)
-# from core import wireless_module # (Bunu da ekleyebilirsiniz)
-from core import report_module
-# --- BİTTİ ---
+# --- VERİTABANI VE MODÜLLER ---
+import database
+from core import recon_module, web_app_module, api_module, internal_network_module, report_module, mobile_module
 
+# --- LOGGING ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Uygulamanın varsayılan temasını ve renklerini ayarlayalım
-ctk.set_appearance_mode("dark")  # "light", "dark", "system"
-ctk.set_default_color_theme("blue")  # "blue", "green", "dark-blue"
+# --- TASARIM SABİTLERİ (HTML'den Esinlenildi) ---
+COLORS = {
+    "bg_main": "#0f172a",       # Ana arka plan (Koyu Lacivert)
+    "bg_card": "#1e293b",       # Kart arka planı (Daha açık lacivert)
+    "bg_card_hover": "#334155", # Kart üzerine gelince
+    "accent": "#38bdf8",        # Vurgu rengi (Sky Blue)
+    "accent_hover": "#0ea5e9",  # Buton hover rengi
+    "text_white": "#f8fafc",    # Beyaz metin
+    "text_gray": "#94a3b8",     # Gri metin
+    "border": "#475569",        # Kenarlık rengi
+    "danger": "#ef4444",        # Kırmızı (Hata/Kritik)
+    "success": "#22c55e",       # Yeşil (Başarılı)
+    "warning": "#f59e0b"        # Turuncu (Uyarı)
+}
+
+# Fontlar
+FONT_HEADER = ("Roboto Medium", 24)
+FONT_SUBHEADER = ("Roboto Medium", 18)
+FONT_BODY = ("Roboto", 13)
+FONT_BOLD = ("Roboto", 13, "bold")
+
+ctk.set_appearance_mode("Dark")
+ctk.set_default_color_theme("blue")
+
+class ScanOptionCard(ctk.CTkFrame):
+    """HTML'deki 'Tarama Modülü' seçim kartlarını taklit eden özel widget."""
+    def __init__(self, parent, title, description, icon, value, variable, command=None):
+        super().__init__(parent, fg_color=COLORS["bg_card"], corner_radius=12, border_width=2, border_color=COLORS["bg_card"])
+        self.value = value
+        self.variable = variable
+        self.command = command
+        
+        # Tıklama olaylarını bağla
+        self.bind("<Button-1>", self.select)
+        
+        # İçerik Düzeni
+        self.grid_columnconfigure(0, weight=1)
+        
+        # İkon (Unicode kullanarak)
+        self.lbl_icon = ctk.CTkLabel(self, text=icon, font=("Arial", 32), text_color=COLORS["accent"])
+        self.lbl_icon.grid(row=0, column=0, pady=(20, 10))
+        self.lbl_icon.bind("<Button-1>", self.select)
+        
+        # Başlık
+        self.lbl_title = ctk.CTkLabel(self, text=title, font=("Roboto", 16, "bold"), text_color=COLORS["text_white"])
+        self.lbl_title.grid(row=1, column=0, pady=(0, 5))
+        self.lbl_title.bind("<Button-1>", self.select)
+        
+        # Açıklama
+        self.lbl_desc = ctk.CTkLabel(self, text=description, font=("Roboto", 11), text_color=COLORS["text_gray"], wraplength=180)
+        self.lbl_desc.grid(row=2, column=0, pady=(0, 20), padx=10)
+        self.lbl_desc.bind("<Button-1>", self.select)
+
+        # Değişkeni dinle (Dışarıdan değişim olursa güncellemek için)
+        if self.variable:
+            self.variable.trace_add("write", self.update_state)
+
+    def select(self, event=None):
+        if self.variable:
+            self.variable.set(self.value)
+            if self.command:
+                self.command()
+
+    def update_state(self, *args):
+        """Seçiliyse kenarlığı ve rengi değiştir."""
+        if self.variable.get() == self.value:
+            self.configure(border_color=COLORS["accent"], fg_color=COLORS["bg_card_hover"])
+        else:
+            self.configure(border_color=COLORS["bg_card"], fg_color=COLORS["bg_card"])
+
 
 class HydraScanApp(ctk.CTk):
-
-    def run_scan_logic(self, scan_id, scan_data):
-        """
-        GERÇEK TARAMA WORKER'I (PARALEL + İPTAL + İLERLEME).
-        """
-        current_progress = 0
-        current_step_text = "Başlatılıyor..."
-        try:
-            # --- İptal Kontrolü Fonksiyonu ---
-            def check_cancel():
-                if self.cancel_requested_map.get(scan_id, False):
-                    raise InterruptedError(f"Tarama {scan_id} kullanıcı tarafından iptal edildi.")
-
-            # --- İlerleme Güncelleme Fonksiyonu ---
-            def update_scan_progress(value, text):
-                nonlocal current_progress, current_step_text
-                current_progress = value
-                current_step_text = text
-                # Ana thread üzerinden GUI'yi güncelle
-                self.after(0, self.update_progress, current_progress, current_step_text)
-
-
-            # --- 1. Hazırlık ---
-            update_scan_progress(5, "Hazırlık yapılıyor...")
-            self.log_and_update(f"[Scan ID: {scan_id}] Tarama başlatılıyor...")
-            # ... (çıktı klasörü oluşturma, DB'ye yazma - AYNI) ...
-            base_output_dir = os.path.abspath("scan_outputs")
-            scan_output_dir = os.path.join(base_output_dir, f"scan_{scan_id}")
-            if not os.path.exists(scan_output_dir): os.makedirs(scan_output_dir)
-            database.set_scan_output_directory(scan_id, scan_output_dir)
-            database.update_scan_status(scan_id, 'RUNNING')
-            self.after(0, self.populate_scan_list)
-            # ... (değişkenleri ayarlama - AYNI) ...
-            domain_input = scan_data['domain']
-            clean_domain = self.get_clean_domain(domain_input)
-            internal_ip = scan_data.get('internal_ip')
-            api_key = scan_data['gemini_key']
-            image_name = "pentest-araci-kali:v1.5"
-
-            check_cancel() # Hazırlık sonrası ilk kontrol
-
-            # --- 2. Tarama Modüllerini PARALEL Çalıştır ---
-            update_scan_progress(10, "Ana modüller (paralel) başlatılıyor...")
-            self.log_and_update(f"[Scan ID: {scan_id}] Ana modüller (Recon, Web, API) PARALEL olarak başlatılıyor...")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                futures = []
-                # Her görev için ayrı ilerleme adımı belirleyebiliriz (örn: Recon %30, Web %30, API %10)
-                futures.append(executor.submit(recon_module.run_reconnaissance, clean_domain, domain_input, image_name, scan_output_dir))
-                futures.append(executor.submit(web_app_module.run_web_tests, domain_input, image_name, scan_output_dir))
-                futures.append(executor.submit(api_module.run_api_tests, domain_input, image_name, scan_output_dir))
-
-                # Görevler tamamlandıkça ilerlemeyi güncelle
-                completed_tasks = 0
-                total_parallel_tasks = len(futures)
-                parallel_progress_per_task = 60 / total_parallel_tasks # Paralel görevler toplam %60 ilerleme sağlasın
-
-                for future in concurrent.futures.as_completed(futures):
-                    check_cancel() # Her görev bittiğinde iptal kontrolü
-                    try:
-                        future.result()
-                        completed_tasks += 1
-                        update_scan_progress(10 + int(completed_tasks * parallel_progress_per_task), f"Ana modül {completed_tasks}/{total_parallel_tasks} tamamlandı...")
-                    except Exception as exc:
-                        self.log_and_update(f'[Scan ID: {scan_id}] Paralel görevlerden birinde hata oluştu: {exc}')
-                        # Hata durumunda ilerlemeyi etkilemeyebiliriz veya %100 FAILED yapabiliriz
-                        # Şimdilik devam etsin
-
-            check_cancel() # Paralel görevler bittikten sonra kontrol
-            update_scan_progress(70, "Ana modüller tamamlandı.")
-            self.log_and_update(f"[Scan ID: {scan_id}] Ana paralel modüller tamamlandı.")
-
-            # --- Sıralı Çalışacak Modüller ---
-            if internal_ip:
-                check_cancel() # Sıralı modül öncesi kontrol
-                update_scan_progress(75, "İç ağ modülü çalışıyor...")
-                self.log_and_update(f"[Scan ID: {scan_id}] Ekstra: İç Ağ Modülü (sıralı) çalıştırılıyor...")
-                internal_network_module.run_internal_tests(internal_ip, image_name, scan_output_dir)
-
-            # --- Diğer Modüller (Mobil, Kablosuz vb.) ---
-            # ... (Buraya if blokları ve check_cancel(), update_scan_progress() ekleyin) ...
-            update_scan_progress(80, "Ek modüller tamamlandı.") # Ek modüller bitince ilerlemeyi güncelle
-
-            # --- 3. Raporlama ---
-            check_cancel() # Raporlama öncesi kontrol
-            update_scan_progress(85, "Raporlama (Gemini AI) başlıyor...")
-            self.log_and_update(f"[Scan ID: {scan_id}] Tarama modülleri tamamlandı. Raporlama (Gemini AI) başlıyor...")
-            database.update_scan_status(scan_id, 'REPORTING')
-            self.after(0, self.populate_scan_list)
-
-            report_local_path = report_module.generate_report(scan_output_dir, domain_input, api_key)
-
-            if report_local_path:
-                update_scan_progress(100, "Tamamlandı")
-                self.log_and_update(f"[Scan ID: {scan_id}] Rapor başarıyla oluşturuldu: {report_local_path}")
-                database.complete_scan(scan_id, report_local_path, "COMPLETED")
-            else:
-                update_scan_progress(100, "Raporlama Hatası")
-                self.log_and_update(f"[Scan ID: {scan_id}] Hata: Rapor oluşturulamadı. Tarama BAŞARISIZ işaretleniyor.")
-                database.complete_scan(scan_id, None, "FAILED")
-
-        except InterruptedError as ie: # İptal hatasını yakala
-            error_message = f"{ie}"
-            self.log_and_update(f"[Scan ID: {scan_id}] {error_message}")
-            database.complete_scan(scan_id, None, "FAILED") # Veya "CANCELLED" durumu ekleyebilirsiniz
-            update_scan_progress(100, "İptal Edildi")
-
-        except FileNotFoundError as fnf_error:
-            error_message = f"KRİTİK HATA: Docker bulunamadı veya başlatılamadı! {fnf_error}"
-            self.log_and_update(f"[Scan ID: {scan_id}] {error_message}")
-            database.complete_scan(scan_id, None, "FAILED")
-            update_scan_progress(100, "Docker Hatası")
-
-        except Exception as e:
-            import traceback
-            error_message = f"Tarama sırasında kritik hata: {e}\n{traceback.format_exc()}"
-            self.log_and_update(f"[Scan ID: {scan_id}] {error_message}")
-            database.complete_scan(scan_id, None, "FAILED")
-            update_scan_progress(100, "Kritik Hata")
-
-        finally:
-            self.after(0, self.on_scan_complete, scan_id)
-            
     def __init__(self):
         super().__init__()
-        # --- İptal İsteği İçin Bayrak ---
-        self.cancel_requested_map = {} # Hangi scan_id'nin iptal istendiğini tutar {scan_id: True}
 
-        # --- Ana Pencere Ayarları ---
-        self.title("🐉 HydraScan - Masaüstü Tarama Yöneticisi")
-        self.geometry("900x750")
-
-        # --- Veritabanını Başlat ---
-        database.init_db()  # <-- BU SATIRI EKLEYİN
-
+        # --- PENCERE AYARLARI ---
+        self.title("HydraScan - Security Automation Platform")
+        self.geometry("1280x850")
+        self.configure(fg_color=COLORS["bg_main"])
+        
+        # İptal ve Durum Yönetimi
+        self.cancel_requested_map = {}
+        
+        # Veritabanı Başlatma
+        database.init_db()
         self.cleanup_unfinished_scans()
 
-        # --- Arayüzü Oluştur ---
-        self.create_widgets()
+        # --- ARAYÜZ YERLEŞİMİ (Izgara) ---
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
-    def update_progress(self, value, text):
-        """İlerleme çubuğunu ve metnini günceller (Ana thread'den çağrılmalı)."""
-        try:
-            self.progressbar.set(value / 100) # Değer 0-1 arasında olmalı
-            self.progress_label.configure(text=f"Tarama İlerlemesi: {text} ({value}%)")
-        except Exception:
-            pass # Pencere kapandıysa hata verme
+        # 1. SOL MENÜ (SIDEBAR)
+        self.create_sidebar()
 
-    def on_scan_select(self, event):
-        """Kullanıcı tablodan bir tarama seçtiğinde butonları günceller."""
-        try:
-            selected_item = self.scan_tree.selection()[0]
-            values = self.scan_tree.item(selected_item, "values")
-            status = values[2] # Durum bilgisi
+        # 2. ANA İÇERİK ALANI
+        self.main_content = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
+        self.main_content.grid(row=0, column=1, sticky="nsew", padx=30, pady=30)
+        
+        # Sayfaları Yönet
+        self.frames = {}
+        self.create_dashboard_page()
+        self.create_new_scan_page()
 
-            if status == "COMPLETED":
-                self.open_report_button.configure(state="normal")
-                self.cancel_scan_button.configure(state="disabled") # Tamamlanmış iptal edilemez
-            elif status == "RUNNING" or status == "REPORTING":
-                self.open_report_button.configure(state="disabled")
-                self.cancel_scan_button.configure(state="normal") # Çalışan iptal edilebilir
-            else: # PENDING, FAILED, INTERRUPTED vb.
-                self.open_report_button.configure(state="disabled")
-                self.cancel_scan_button.configure(state="disabled")
-        except IndexError:
-            # Seçim kaldırıldı
-            self.open_report_button.configure(state="disabled")
-            self.cancel_scan_button.configure(state="disabled")
+        # Başlangıç Sayfası
+        self.show_frame("Dashboard")
 
-    def request_cancel_scan(self):
-        """'Taramayı İptal Et' butonuna basıldığında iptal isteğini kaydeder."""
-        try:
-            selected_item = self.scan_tree.selection()[0]
-            scan_id = int(selected_item)
-            if messagebox.askyesno("Tarama İptal", f"ID: {scan_id} olan taramayı iptal etmek istediğinize emin misiniz?"):
-                self.log_and_update(f"[Scan ID: {scan_id}] İptal isteği gönderildi.")
-                self.cancel_requested_map[scan_id] = True
-                self.cancel_scan_button.configure(text="İptal İsteniyor...", state="disabled") # Butonu geçici olarak devre dışı bırak
-        except IndexError:
-            messagebox.showwarning("Hata", "Lütfen iptal etmek için çalışan bir tarama seçin.")
-        except Exception as e:
-            messagebox.showerror("Hata", f"İptal isteği gönderilirken hata oluştu: {e}")
+    def create_sidebar(self):
+        """base.html'deki sidebar tasarımına benzer yapı."""
+        sidebar = ctk.CTkFrame(self, fg_color=COLORS["bg_card"], width=260, corner_radius=0)
+        sidebar.grid(row=0, column=0, sticky="nsew")
+        sidebar.grid_rowconfigure(5, weight=1)
+
+        # Logo Bölümü
+        logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
+        logo_frame.grid(row=0, column=0, pady=(40, 20), padx=20, sticky="ew")
+        
+        icon = ctk.CTkLabel(logo_frame, text="🐉", font=("Arial", 36))
+        icon.pack(side="left", padx=(0, 10))
+        
+        title_box = ctk.CTkFrame(logo_frame, fg_color="transparent")
+        title_box.pack(side="left")
+        ctk.CTkLabel(title_box, text="HYDRASCAN", font=("Roboto", 20, "bold"), text_color=COLORS["text_white"]).pack(anchor="w")
+        ctk.CTkLabel(title_box, text="v2.0 Pro", font=("Roboto", 11), text_color=COLORS["accent"]).pack(anchor="w")
+
+        # Ayırıcı Çizgi
+        ctk.CTkFrame(sidebar, height=2, fg_color=COLORS["bg_main"]).grid(row=1, column=0, sticky="ew", padx=20, pady=20)
+
+        # Menü Butonları
+        self.btn_dash = self.create_nav_btn(sidebar, "Genel Bakış", "📊", lambda: self.show_frame("Dashboard"))
+        self.btn_dash.grid(row=2, column=0, padx=20, pady=5, sticky="ew")
+
+        self.btn_new = self.create_nav_btn(sidebar, "Yeni Tarama", "🚀", lambda: self.show_frame("NewScan"))
+        self.btn_new.grid(row=3, column=0, padx=20, pady=5, sticky="ew")
+
+        # Alt Profil Bölümü
+        profile_frame = ctk.CTkFrame(sidebar, fg_color=COLORS["bg_main"], corner_radius=10)
+        profile_frame.grid(row=6, column=0, padx=20, pady=30, sticky="ew")
+        
+        ctk.CTkLabel(profile_frame, text="MK", width=40, height=40, corner_radius=20, fg_color=COLORS["accent"], text_color=COLORS["bg_main"], font=("Arial", 16, "bold")).pack(side="left", padx=10, pady=10)
+        user_lbls = ctk.CTkFrame(profile_frame, fg_color="transparent")
+        user_lbls.pack(side="left")
+        ctk.CTkLabel(user_lbls, text="Admin User", font=("Roboto", 13, "bold"), text_color=COLORS["text_white"]).pack(anchor="w")
+        ctk.CTkLabel(user_lbls, text="Sistem Yöneticisi", font=("Roboto", 11), text_color=COLORS["success"]).pack(anchor="w")
+
+    def create_nav_btn(self, parent, text, icon, command):
+        return ctk.CTkButton(parent, text=f"  {icon}   {text}", command=command,
+                             fg_color="transparent", hover_color=COLORS["bg_main"], 
+                             text_color=COLORS["text_gray"], anchor="w", height=45, 
+                             font=("Roboto", 14, "bold"), corner_radius=8)
+
+    def show_frame(self, name):
+        """Sayfa geçişlerini yönetir ve aktif butonu vurgular."""
+        for f in self.frames.values(): f.pack_forget()
+        self.frames[name].pack(fill="both", expand=True)
+        
+        # Buton stillerini güncelle
+        if name == "Dashboard":
+            self.btn_dash.configure(fg_color=COLORS["bg_main"], text_color=COLORS["accent"])
+            self.btn_new.configure(fg_color="transparent", text_color=COLORS["text_gray"])
+            self.populate_scan_list()
+        else:
+            self.btn_dash.configure(fg_color="transparent", text_color=COLORS["text_gray"])
+            self.btn_new.configure(fg_color=COLORS["bg_main"], text_color=COLORS["accent"])
+
+    # ==================================================================
+    # DASHBOARD SAYFASI (dashboard.html gibi)
+    # ==================================================================
+    def create_dashboard_page(self):
+        page = ctk.CTkFrame(self.main_content, fg_color="transparent")
+        self.frames["Dashboard"] = page
+
+        # Üst İstatistikler
+        stats_grid = ctk.CTkFrame(page, fg_color="transparent")
+        stats_grid.pack(fill="x", pady=(0, 25))
+        
+        self.stat_total = self.create_stat_card(stats_grid, "Toplam Tarama", "0", "📁", COLORS["accent"])
+        self.stat_total.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        
+        self.stat_active = self.create_stat_card(stats_grid, "Devam Eden", "0", "⚡", COLORS["warning"])
+        self.stat_active.pack(side="left", fill="x", expand=True, padx=10)
+        
+        self.stat_risk = self.create_stat_card(stats_grid, "Kritik Risk", "0", "🛡️", COLORS["danger"])
+        self.stat_risk.pack(side="left", fill="x", expand=True, padx=(10, 0))
+
+        # Tablo Alanı Başlığı
+        action_bar = ctk.CTkFrame(page, fg_color="transparent")
+        action_bar.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(action_bar, text="Son Taramalar", font=FONT_SUBHEADER, text_color=COLORS["text_white"]).pack(side="left")
+        
+        self.btn_refresh = ctk.CTkButton(action_bar, text="↻ Yenile", width=80, fg_color=COLORS["bg_card"], hover_color=COLORS["bg_card_hover"], command=self.populate_scan_list)
+        self.btn_refresh.pack(side="right", padx=5)
+        
+        self.btn_open_rep = ctk.CTkButton(action_bar, text="Raporu Görüntüle", state="disabled", fg_color=COLORS["success"], hover_color="#16a34a", command=self.open_report_gui)
+        self.btn_open_rep.pack(side="right", padx=5)
+
+        # Gelişmiş Tablo (Treeview)
+        # Treeview için özel stil (Dark mode uyumlu)
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("Treeview", 
+                        background=COLORS["bg_card"], 
+                        foreground=COLORS["text_white"], 
+                        fieldbackground=COLORS["bg_card"],
+                        bordercolor=COLORS["bg_main"],
+                        rowheight=40, font=("Roboto", 11))
+        style.configure("Treeview.Heading", 
+                        background=COLORS["bg_main"], 
+                        foreground=COLORS["text_gray"], 
+                        font=("Roboto", 12, "bold"), relief="flat")
+        style.map("Treeview", background=[('selected', COLORS["accent"])], foreground=[('selected', 'black')])
+
+        # Tablo Çerçevesi (Yuvarlatılmış köşe efekti için)
+        table_frame = ctk.CTkFrame(page, fg_color=COLORS["bg_card"], corner_radius=10)
+        table_frame.pack(fill="both", expand=True)
+        
+        self.tree = ttk.Treeview(table_frame, columns=("ID", "Hedef", "Durum", "Tarih"), show="headings")
+        self.tree.heading("ID", text="ID")
+        self.tree.heading("Hedef", text="HEDEF SİSTEM")
+        self.tree.heading("Durum", text="DURUM")
+        self.tree.heading("Tarih", text="TARİH")
+        
+        self.tree.column("ID", width=50, anchor="center")
+        self.tree.column("Hedef", width=400)
+        self.tree.column("Durum", width=150, anchor="center")
+        self.tree.column("Tarih", width=200, anchor="center")
+        
+        self.tree.pack(fill="both", expand=True, padx=2, pady=2)
+        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
+
+    def create_stat_card(self, parent, title, value, icon, color):
+        """dashboard.html'deki kart tasarımını taklit eder."""
+        card = ctk.CTkFrame(parent, fg_color=COLORS["bg_card"], corner_radius=12)
+        
+        # İçerik Konteyner
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Sol Taraf (Metinler)
+        text_frame = ctk.CTkFrame(inner, fg_color="transparent")
+        text_frame.pack(side="left", fill="y")
+        
+        ctk.CTkLabel(text_frame, text=title, font=("Roboto", 12), text_color=COLORS["text_gray"]).pack(anchor="w")
+        val_lbl = ctk.CTkLabel(text_frame, text=value, font=("Roboto", 28, "bold"), text_color=COLORS["text_white"])
+        val_lbl.pack(anchor="w")
+        
+        # Sağ Taraf (İkon Kutusu)
+        icon_box = ctk.CTkFrame(inner, width=50, height=50, corner_radius=10, fg_color=color) # Renkli kutu
+        icon_box.pack(side="right", anchor="ne")
+        
+        ctk.CTkLabel(icon_box, text=icon, font=("Arial", 24), text_color="white").place(relx=0.5, rely=0.5, anchor="center")
+        
+        card.value_label = val_lbl # Referans
+        return card
+
+    # ==================================================================
+    # YENİ TARAMA SAYFASI (start_scan_form.html gibi)
+    # ==================================================================
+    def create_new_scan_page(self):
+        page = ctk.CTkFrame(self.main_content, fg_color="transparent")
+        self.frames["NewScan"] = page
+
+        # Başlık ve Dekoratif Efekt (Basitçe renkli bir başlık ile)
+        ctk.CTkLabel(page, text="Yeni Tarama Yapılandırması", font=FONT_HEADER, text_color=COLORS["text_white"]).pack(anchor="w", pady=(0, 20))
+
+        # Ana Form Kartı (start_scan_form.html'deki glass panel)
+        form_card = ctk.CTkFrame(page, fg_color=COLORS["bg_card"], corner_radius=15, border_width=1, border_color=COLORS["border"])
+        form_card.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Kaydırılabilir İçerik (Eğer ekran küçükse diye)
+        scroll = ctk.CTkScrollableFrame(form_card, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # 1. HEDEF GİRİŞİ
+        ctk.CTkLabel(scroll, text="Hedef (IP veya Domain)", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", pady=(10, 5))
+        self.entry_domain = ctk.CTkEntry(scroll, placeholder_text="örn: 192.168.1.1 veya example.com", height=45, font=FONT_BODY, border_color=COLORS["border"])
+        self.entry_domain.pack(fill="x", pady=(0, 20))
+
+        # 2. TARAMA MODÜLÜ SEÇİMİ (Kartlı Yapı - start_scan_form.html'deki gibi)
+        ctk.CTkLabel(scroll, text="Tarama Modülü", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", pady=(10, 10))
+        
+        module_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        module_frame.pack(fill="x", pady=(0, 20))
+        
+        self.scan_type_var = ctk.StringVar(value="basic_scan") # Varsayılan: Basic
+        
+        # Kart 1: Temel Tarama
+        card_basic = ScanOptionCard(
+            module_frame, 
+            title="Temel Ağ Taraması", 
+            description="Hızlı port taraması ve servis tespiti (Nmap Basic).",
+            icon="🌐", 
+            value="basic_scan", 
+            variable=self.scan_type_var
+        )
+        card_basic.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        
+        # Kart 2: Kapsamlı Tarama
+        card_full = ScanOptionCard(
+            module_frame, 
+            title="Kapsamlı Tarama", 
+            description="Tüm portlar, zafiyet analizi ve detaylı raporlama.",
+            icon="☢️", 
+            value="full_scan", 
+            variable=self.scan_type_var
+        )
+        card_full.pack(side="left", fill="x", expand=True, padx=(10, 0))
+
+        # 3. GELİŞMİŞ AYARLAR (İsteğe Bağlı)
+        # --- HATA DÜZELTİLDİ: 'with' bloğu kaldırıldı ---
+        adv_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        adv_frame.pack(fill="x", pady=10)
+        
+        # İç Ağ
+        ctk.CTkLabel(adv_frame, text="İç Ağ Aralığı (Opsiyonel)", font=("Roboto", 12, "bold"), text_color=COLORS["text_gray"]).grid(row=0, column=0, sticky="w", pady=5)
+        self.entry_internal = ctk.CTkEntry(adv_frame, placeholder_text="192.168.1.0/24", width=300)
+        self.entry_internal.grid(row=1, column=0, sticky="ew", padx=(0, 10), pady=(0, 15))
+        
+        # Gemini Key
+        ctk.CTkLabel(adv_frame, text="Gemini API Anahtarı", font=("Roboto", 12, "bold"), text_color=COLORS["text_gray"]).grid(row=0, column=1, sticky="w", pady=5)
+        self.entry_gemini = ctk.CTkEntry(adv_frame, placeholder_text="API Key...", show="*", width=300)
+        self.entry_gemini.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(0, 15))
+
+        # APK Seçimi
+        apk_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_main"], corner_radius=8)
+        apk_frame.pack(fill="x", pady=(0, 20), ipady=5)
+        self.btn_apk = ctk.CTkButton(apk_frame, text="APK Dosyası Yükle", command=self.select_apk, fg_color=COLORS["bg_card_hover"], width=150)
+        self.btn_apk.pack(side="left", padx=10, pady=10)
+        self.lbl_apk = ctk.CTkLabel(apk_frame, text="Dosya seçilmedi", text_color=COLORS["text_gray"])
+        self.lbl_apk.pack(side="left", padx=10)
+        self.selected_apk = None
+
+        # Durum ve İlerleme
+        self.lbl_status = ctk.CTkLabel(scroll, text="Hazır", text_color=COLORS["text_gray"], anchor="e")
+        self.lbl_status.pack(fill="x", pady=(10, 0))
+        self.progress = ctk.CTkProgressBar(scroll, height=10, progress_color=COLORS["accent"])
+        self.progress.set(0)
+        self.progress.pack(fill="x", pady=(5, 20))
+
+        # Alt Butonlar (İptal / Başlat)
+        btn_box = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_box.pack(fill="x", pady=10)
+        
+        ctk.CTkButton(btn_box, text="İptal", fg_color="transparent", text_color=COLORS["text_gray"], hover_color=COLORS["bg_main"], width=100, command=lambda: self.show_frame("Dashboard")).pack(side="left")
+        
+        self.btn_start = ctk.CTkButton(btn_box, text="Taramayı Başlat  🚀", height=50, font=("Roboto", 16, "bold"), fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"], text_color=COLORS["bg_main"], command=self.start_scan_thread)
+        self.btn_start.pack(side="right", fill="x", expand=True, padx=(20, 0))
+
+    # ==================================================================
+    # FONKSİYONLAR
+    # ==================================================================
+    def select_apk(self):
+        path = filedialog.askopenfilename(filetypes=[("Android App", "*.apk")])
+        if path:
+            self.selected_apk = path
+            self.lbl_apk.configure(text=os.path.basename(path), text_color=COLORS["text_white"])
 
     def cleanup_unfinished_scans(self):
-        """Uygulama başlangıcında durumu RUNNING/REPORTING olan taramaları FAILED yapar."""
         try:
             conn = database.get_db_connection()
-            # conn.execute'dan önce cursor oluşturmak daha standarttır.
-            cursor = conn.cursor()
-            cursor.execute("UPDATE scans SET status = 'FAILED', completed_at = ? WHERE status = 'RUNNING' OR status = 'REPORTING'", (datetime.datetime.now(),))
-            updated_count = cursor.rowcount # Kaç satırın güncellendiğini al
+            conn.cursor().execute("UPDATE scans SET status = 'FAILED' WHERE status IN ('RUNNING', 'REPORTING')")
             conn.commit()
             conn.close()
-            if updated_count > 0:
-                print(f"[Başlangıç Temizliği] {updated_count} adet tamamlanmamış tarama 'FAILED' olarak işaretlendi.")
-        except Exception as e:
-            print(f"[Hata] Başlangıç temizliği sırasında veritabanı hatası: {e}")
-            # Hata durumunda kullanıcıya bilgi verilebilir
-            messagebox.showerror("Veritabanı Hatası", f"Başlangıçta tamamlanmamış taramalar temizlenirken hata oluştu: {e}")    
-
-    def get_clean_domain(self, domain_with_port):
-        """Domain'den port numarasını (varsa) ayıklar."""
-        if ':' in domain_with_port:
-            return domain_with_port.split(':')[0]
-        return domain_with_port
-
-    def log_and_update(self, message):
-        """Hem log kutusuna hem de (eğer ayarlandıysa) konsola log yazar."""
-        logging.info(message) # Konsola log (seviye INFO ise görünür)
-        # self.after kullanarak GUI thread'inde güvenle güncelle
-        # Not: Eğer worker thread çok sık log yazarsa GUI yavaşlayabilir.
-        # Daha gelişmiş bir yöntemde logları bir kuyruğa (queue) atıp
-        # GUI thread'i periyodik olarak kuyruktan okuyabilir.
-        # Şimdilik bu yöntem yeterli olacaktır.
-        try:
-            # Pencere kapatıldıktan sonra bu hata verebilir, yakalayalım
-            self.after(0, self.add_log, message)
-        except Exception:
-            pass # Pencere kapandıysa loglamayı atla    
-
-    def create_widgets(self):
-        # --- Ana Çerçeve ---
-        main_frame = ctk.CTkFrame(self)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-        # --- 1. Başlık Alanı ---
-        title_label = ctk.CTkLabel(main_frame, text="🐉 HydraScan", font=ctk.CTkFont(size=24, weight="bold"))
-        title_label.pack(pady=10)
-
-            # --- İlerleme Çubuğu ---
-        self.progress_label = ctk.CTkLabel(main_frame, text="Tarama İlerlemesi: Beklemede", font=ctk.CTkFont(size=12))
-        self.progress_label.pack(fill="x", padx=10, pady=(5,0))
-        self.progressbar = ctk.CTkProgressBar(main_frame)
-        self.progressbar.pack(fill="x", padx=10, pady=(0, 10))
-        self.progressbar.set(0) # Başlangıçta 0
-
-        # --- Durum/Log Alanı (En Alt) ---
-        self.log_textbox = ctk.CTkTextbox(main_frame, height=150, state="disabled", text_color="#A9A9A9")
-        self.log_textbox.pack(fill="x", padx=5, pady=(0, 5))
-
-        # --- 2. Durum/Log Alanı (En Alt) ---
-        # Hata almamak için log kutusunu sekmelerden ÖNCE tanımlıyoruz.
-        self.log_textbox = ctk.CTkTextbox(main_frame, height=150, state="disabled", text_color="#A9A9A9")
-        self.log_textbox.pack(fill="x", padx=5, pady=(0, 5))
-        
-        # --- 3. Sekmeli Alan (Yeni Tarama / Gösterge Paneli) ---
-        self.tab_view = ctk.CTkTabview(main_frame)
-        self.tab_view.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        self.tab_yeni_tarama = self.tab_view.add("Yeni Tarama")
-        self.tab_dashboard = self.tab_view.add("Gösterge Paneli")
-        
-        # --- 4. Sekmeleri Doldur ---
-        # Artık bu fonksiyonlar 'add_log'u güvenle çağırabilir
-        self.create_yeni_tarama_tab(self.tab_yeni_tarama)
-        self.create_dashboard_tab(self.tab_dashboard)
-        
-        # --- 5. İlk Log Mesajı ---
-        self.add_log("HydraScan başlatıldı. Lütfen 'Yeni Tarama' sekmesinden bir hedef belirleyin.")
-
-    def get_clean_domain(self, domain_with_port):
-        """Domain'den port numarasını (varsa) ayıklar."""
-        if ':' in domain_with_port:
-            return domain_with_port.split(':')[0]
-        return domain_with_port
-
-    def log_and_update(self, message):
-        """Hem log kutusuna hem de konsola log yazar."""
-        logging.info(message)
-        # self.after kullanarak GUI thread'inde güvenle güncelle
-        self.after(0, self.add_log, message)    
-
-
-    # ==================================================================
-    # YENİ TARAMA SEKMESİ
-    # ==================================================================
-    def create_yeni_tarama_tab(self, tab):
-        tab.grid_columnconfigure(0, weight=1)
-        
-        # --- Temel Hedefler Çerçevesi ---
-        temel_frame = ctk.CTkFrame(tab)
-        temel_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
-        temel_frame.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(temel_frame, text="Temel Hedefler", font=ctk.CTkFont(size=14, weight="bold")).grid(row=0, column=0, columnspan=2, pady=(5, 10))
-
-        ctk.CTkLabel(temel_frame, text="Hedef Domain:").grid(row=1, column=0, sticky="e", padx=10, pady=5)
-        self.entry_domain = ctk.CTkEntry(temel_frame, placeholder_text="örn: site.com:8080")
-        self.entry_domain.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
-
-        ctk.CTkLabel(temel_frame, text="İç Ağ IP Aralığı:").grid(row=2, column=0, sticky="e", padx=10, pady=5)
-        self.entry_internal_ip = ctk.CTkEntry(temel_frame, placeholder_text="Opsiyonel (örn: 192.168.1.0/24)")
-        self.entry_internal_ip.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
-
-        # --- Gelişmiş Modüller Çerçevesi ---
-        gelismis_frame = ctk.CTkFrame(tab)
-        gelismis_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
-        gelismis_frame.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(gelismis_frame, text="Gelişmiş Modüller (Opsiyonel)", font=ctk.CTkFont(size=14, weight="bold")).grid(row=0, column=0, columnspan=3, pady=(5, 10))
-        
-        # Mobil (APK)
-        ctk.CTkLabel(gelismis_frame, text="Mobil (.apk):").grid(row=1, column=0, sticky="e", padx=10, pady=5)
-        self.apk_button = ctk.CTkButton(gelismis_frame, text="APK Dosyası Seç...", command=self.select_apk_file, width=150)
-        self.apk_button.grid(row=1, column=1, padx=(10, 5), pady=5, sticky="w")
-        self.apk_path_label = ctk.CTkLabel(gelismis_frame, text="Dosya seçilmedi", text_color="gray")
-        self.apk_path_label.grid(row=1, column=2, padx=5, pady=5, sticky="w")
-        self.selected_apk_path = None # Seçilen dosya yolunu burada saklayacağız
-
-        # Kablosuz
-        ctk.CTkLabel(gelismis_frame, text="Kablosuz Arayüz:").grid(row=2, column=0, sticky="e", padx=10, pady=5)
-        self.entry_wifi_iface = ctk.CTkEntry(gelismis_frame, placeholder_text="örn: wlan0")
-        self.entry_wifi_iface.grid(row=2, column=1, columnspan=2, sticky="ew", padx=10, pady=5)
-        
-        ctk.CTkLabel(gelismis_frame, text="Hedef BSSID:").grid(row=3, column=0, sticky="e", padx=10, pady=5)
-        self.entry_wifi_bssid = ctk.CTkEntry(gelismis_frame, placeholder_text="örn: AA:BB:CC:11:22:33")
-        self.entry_wifi_bssid.grid(row=3, column=1, columnspan=2, sticky="ew", padx=10, pady=5)
-
-        ctk.CTkLabel(gelismis_frame, text="Hedef Kanal:").grid(row=4, column=0, sticky="e", padx=10, pady=5)
-        self.entry_wifi_channel = ctk.CTkEntry(gelismis_frame, placeholder_text="örn: 6")
-        self.entry_wifi_channel.grid(row=4, column=1, columnspan=2, sticky="ew", padx=10, pady=5)
-
-        # --- Raporlama & Başlatma Çerçevesi ---
-        rapor_frame = ctk.CTkFrame(tab)
-        rapor_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=10)
-        rapor_frame.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(rapor_frame, text="Raporlama Ayarı").grid(row=0, column=0, sticky="e", padx=10, pady=5)
-        self.entry_gemini_key = ctk.CTkEntry(rapor_frame, placeholder_text="Gemini API Anahtarınızı buraya girin (Raporlama için zorunlu)", show="*")
-        self.entry_gemini_key.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
-
-        # --- Başlat Butonu ---
-        self.start_button = ctk.CTkButton(tab, text="Taramayı Başlat", font=ctk.CTkFont(size=16, weight="bold"), height=40, command=self.start_scan_thread)
-        self.start_button.grid(row=3, column=0, sticky="ews", padx=10, pady=10)
-
-
-    # ==================================================================
-    # GÖSTERGE PANELİ (DASHBOARD) SEKMESİ
-    # ==================================================================
-    # ==================================================================
-    # GÖSTERGE PANELİ (DASHBOARD) SEKMESİ (DÜZELTİLMİŞ HALİ)
-    # ==================================================================
-    def create_dashboard_tab(self, tab):
-        tab.grid_rowconfigure(0, weight=1) # Tablo alanı (üstte) genişlesin
-        tab.grid_columnconfigure(0, weight=1)
-        
-        # --- 1. ÖNCE TABLO ÇERÇEVESİNİ OLUŞTUR (row=0) ---
-        tree_frame = ctk.CTkFrame(tab)
-        tree_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-        tree_frame.grid_rowconfigure(0, weight=1)
-        tree_frame.grid_columnconfigure(0, weight=1)
-
-        # --- 2. STİLİ OLUŞTUR ---
-        style = ttk.Style()
-        style.theme_use("default")
-        style.configure("Treeview", 
-                        background="#2b2b2b", 
-                        foreground="white", 
-                        fieldbackground="#2b2b2b", 
-                        bordercolor="#2b2b2b",
-                        rowheight=25)
-        style.map('Treeview', background=[('selected', '#3471CD')]) # Seçim rengi
-        style.configure("Treeview.Heading", 
-                        background="#565b5e", 
-                        foreground="white", 
-                        font=('Calibri', 12, 'bold'))
-        style.map("Treeview.Heading",
-                  background=[('active', '#3471CD')])
-        
-        # --- 3. TABLOYU OLUŞTUR (self.scan_tree) ---
-        self.scan_tree = ttk.Treeview(tree_frame, columns=("ID", "Hedef", "Durum", "Baslangic"), show="headings")
-        self.scan_tree.grid(row=0, column=0, sticky="nsew")
-
-        # --- 4. TABLO AYARLARINI YAP (Başlıklar, Sütunlar) ---
-        self.scan_tree.heading("ID", text="ID", anchor="w")
-        self.scan_tree.heading("Hedef", text="Hedef", anchor="w")
-        self.scan_tree.heading("Durum", text="Durum", anchor="w")
-        self.scan_tree.heading("Baslangic", text="Başlangıç Tarihi", anchor="w")
-
-        self.scan_tree.column("ID", width=50, stretch=False, anchor="w")
-        self.scan_tree.column("Hedef", width=300, stretch=True, anchor="w")
-        self.scan_tree.column("Durum", width=120, stretch=False, anchor="w")
-        self.scan_tree.column("Baslangic", width=180, stretch=False, anchor="w")
-
-        # --- 5. KAYDIRMA ÇUBUĞUNU (SCROLLBAR) OLUŞTUR ---
-        scrollbar = ctk.CTkScrollbar(tree_frame, command=self.scan_tree.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        self.scan_tree.configure(yscrollcommand=scrollbar.set)
-        
-        # --- 6. BUTON ÇERÇEVESİNİ OLUŞTUR (row=1) ---
-        # (Fazla olan ikinci 'button_frame' bloğu silindi)
-        button_frame = ctk.CTkFrame(tab)
-        button_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
-        button_frame.grid_columnconfigure(0, weight=1) # Yenile
-        button_frame.grid_columnconfigure(1, weight=1) # Raporu Aç
-        button_frame.grid_columnconfigure(2, weight=1) # İptal Et
-        button_frame.grid_columnconfigure(3, weight=1) # Sil
-
-        self.refresh_button = ctk.CTkButton(button_frame, text="Listeyi Yenile", command=self.populate_scan_list)
-        self.refresh_button.grid(row=0, column=0, padx=5, pady=5)
-        
-        self.open_report_button = ctk.CTkButton(button_frame, text="Raporu Aç", command=self.open_report, state="disabled")
-        self.open_report_button.grid(row=0, column=1, padx=5, pady=5)
-        
-        self.cancel_scan_button = ctk.CTkButton(button_frame, text="Taramayı İptal Et", fg_color="#FFA000", hover_color="#FF8F00", command=self.request_cancel_scan, state="disabled")
-        self.cancel_scan_button.grid(row=0, column=2, padx=5, pady=5)
-        
-        self.delete_scan_button = ctk.CTkButton(button_frame, text="Seçili Taramayı Sil", fg_color="#D32F2F", hover_color="#B71C1C", command=self.delete_scan)
-        self.delete_scan_button.grid(row=0, column=3, padx=5, pady=5)
-
-        # --- 7. OLAYI TABLOYA BAĞLA (Tablo artık var) ---
-        self.scan_tree.bind("<<TreeviewSelect>>", self.on_scan_select)
-        
-        # --- 8. LİSTEYİ DOLDUR ---
-        self.populate_scan_list()
-        
-    # ==================================================================
-    # FONKSİYONLAR (Şimdilik boş, sonradan doldurulacak)
-    # ==================================================================
-    
-    def add_log(self, message):
-        """Arayüzdeki log kutusuna mesaj ekler."""
-        self.log_textbox.configure(state="normal")
-        # DÜZELTME: ctk. kaldırıldı
-        self.log_textbox.insert("end", f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {message}\n")
-        self.log_textbox.configure(state="disabled")
-        self.log_textbox.see("end") # Otomatik aşağı kaydır
-
-    def select_apk_file(self):
-        """Mobil APK dosyası seçmek için bir dosya diyaloğu açar."""
-        file_path = filedialog.askopenfilename(
-            title="Bir .apk dosyası seçin",
-            filetypes=(("Android Paketleri", "*.apk"), ("Tüm Dosyalar", "*.*"))
-        )
-        if file_path:
-            self.selected_apk_path = file_path
-            self.apk_path_label.configure(text=os.path.basename(file_path), text_color="white")
-            self.add_log(f"Mobil tarama için dosya seçildi: {file_path}")
-        else:
-            self.selected_apk_path = None
-            self.apk_path_label.configure(text="Dosya seçilmedi", text_color="gray")
-
-    def start_scan_thread(self):
-        """
-        'Taramayı Başlat' butonuna basıldığında tetiklenir.
-        Girdileri doğrular, DB'ye kaydeder ve taramayı ayrı bir thread'de başlatır.
-        """
-        self.add_log("Tarama isteği alındı, girdiler doğrulanıyor...")
-        
-        domain = self.entry_domain.get()
-        gemini_key = self.entry_gemini_key.get()
-        
-        if not domain or not gemini_key:
-            messagebox.showerror("Eksik Bilgi", "Lütfen 'Hedef Domain' ve 'Gemini API Anahtarı' alanlarını doldurun.")
-            self.add_log("Hata: Hedef Domain veya Gemini API anahtarı eksik.")
-            return
-
-        # --- Tüm girdileri topla ---
-        scan_data = {
-            "domain": domain,
-            "gemini_key": gemini_key, # Gemini anahtarını DB'ye kaydetmiyoruz, sadece worker'a yollayacağız
-            "internal_ip": self.entry_internal_ip.get() or None,
-            "apk_path": self.selected_apk_path,
-            "wifi_iface": self.entry_wifi_iface.get() or None,
-            "wifi_bssid": self.entry_wifi_bssid.get() or None,
-            "wifi_channel": self.entry_wifi_channel.get() or None
-        }
-        
-        try:
-            # 1. Taramayı veritabanına kaydet
-            new_scan_id = database.create_scan(scan_data)
-            self.add_log(f"Hedef: {domain} için tarama ID {new_scan_id} ile veritabanına eklendi.")
-            
-            # 2. Arayüzü güncelle ve Dashboard'a geç
-            self.start_button.configure(text="Tarama Çalışıyor...", state="disabled")
-            self.tab_view.set("Gösterge Paneli")
-            self.populate_scan_list() # Listeyi anında yenile
-
-            # 3. BURASI ÇOK ÖNEMLİ: Asıl işi (tarama) ayrı bir thread'de başlat
-            # Arayüzün donmaması için 'target' olarak ana tarama mantığını vereceğiz
-            # Şimdilik, sadece 5 saniye uyuyan sahte bir worker başlatalım
-            
-            # (Gelecek adımda 'target'ı 'self.run_scan_logic' ile değiştireceğiz)
-            scan_thread = threading.Thread(
-                target=self.run_scan_logic, # <-- FAKE_SCAN_WORKER'I BUNUNLA DEĞİŞTİRİN
-                args=(new_scan_id, scan_data),
-                daemon=True # Ana program kapanınca thread'in de kapanmasını sağlar
-            )
-            scan_thread.start()
-            
-        except Exception as e:
-            self.add_log(f"Hata: Tarama başlatılamadı - {e}")
-            messagebox.showerror("Veritabanı Hatası", f"Tarama oluşturulurken bir hata oluştu: {e}")
-
-    # ÖNEMLİ: on_scan_complete fonksiyonunu progress bar'ı sıfırlayacak şekilde güncelleyelim
-    def on_scan_complete(self, scan_id):
-        """Tarama bittiğinde (thread'den çağrılır) arayüzü günceller."""
-        self.log_and_update(f"Tarama (ID: {scan_id}) thread'i sonlandı.")
-        self.start_button.configure(text="Taramayı Başlat", state="normal")
-        # İptal isteğini temizle (varsa)
-        if scan_id in self.cancel_requested_map:
-            del self.cancel_requested_map[scan_id]
-        # İlerleme çubuğunu sıfırla ve metni güncelle
-        self.update_progress(0, "Beklemede")
-        # Listeyi son kez yenile
-        self.populate_scan_list()
-        # İptal butonunun durumunu tekrar kontrol et (seçim değişmediyse)
-        self.on_scan_select(None) # Seçimi tetikle
-
+        except: pass
 
     def populate_scan_list(self):
-        """
-        db.sqlite3 dosyasından taramaları okur ve tabloyu doldurur.
-        """
-        # Önce mevcut tabloyu temizle
-        for item in self.scan_tree.get_children():
-            self.scan_tree.delete(item)
+        for i in self.tree.get_children(): self.tree.delete(i)
+        scans = database.get_all_scans()
+        
+        # Sayaçlar
+        active = sum(1 for s in scans if s['status'] in ["RUNNING", "REPORTING"])
+        failed = sum(1 for s in scans if s['status'] == "FAILED")
+        
+        self.stat_total.value_label.configure(text=str(len(scans)))
+        self.stat_active.value_label.configure(text=str(active))
+        self.stat_risk.value_label.configure(text=str(failed)) # Şimdilik Failed'ı risk gibi gösterelim
+
+        for s in scans:
+            # Tarih düzeltme
+            d = s['created_at']
+            try: d = datetime.datetime.strptime(s['created_at'], '%Y-%m-%d %H:%M:%S.%f').strftime('%d %b %H:%M')
+            except: pass
             
+            # Durum simgesi
+            st = s['status']
+            icon = "⏳" if st == "PENDING" else "⚡" if st == "RUNNING" else "✅" if st == "COMPLETED" else "❌"
+            
+            self.tree.insert("", "end", values=(s['id'], s['target_full_domain'], f"{icon} {st}", d))
+
+    def on_tree_select(self, event):
+        sel = self.tree.selection()
+        if sel:
+            st = self.tree.item(sel[0])['values'][2]
+            if "COMPLETED" in st: self.btn_open_rep.configure(state="normal")
+            else: self.btn_open_rep.configure(state="disabled")
+
+    def start_scan_thread(self):
+        domain = self.entry_domain.get()
+        key = self.entry_gemini.get()
+        
+        if not domain or not key:
+            messagebox.showwarning("Eksik Bilgi", "Lütfen Hedef ve Gemini API anahtarını girin.")
+            return
+            
+        self.btn_start.configure(state="disabled", text="Başlatılıyor...")
+        self.progress.set(0.05)
+        self.lbl_status.configure(text="Sistem hazırlanıyor...")
+        
+        scan_data = {
+            "domain": domain,
+            "gemini_key": key,
+            "internal_ip": self.entry_internal.get(),
+            "apk_path": self.selected_apk,
+            "scan_type": self.scan_type_var.get()
+        }
+        
+        scan_id = database.create_scan(scan_data)
+        threading.Thread(target=self.run_scan_logic, args=(scan_id, scan_data), daemon=True).start()
+
+    def run_scan_logic(self, scan_id, data):
+        def ui(p, t): 
+            self.progress.set(p)
+            self.lbl_status.configure(text=t)
+
         try:
-            # Veritabanından TÜM taramaları çek
-            all_scans = database.get_all_scans() 
+            database.update_scan_status(scan_id, 'RUNNING')
+            out = os.path.abspath(f"scan_outputs/scan_{scan_id}")
+            if not os.path.exists(out): os.makedirs(out)
+            database.set_scan_output_directory(scan_id, out)
             
-            if not all_scans:
-                self.add_log("Veritabanında hiç tarama kaydı bulunamadı.")
-                return
-
-            # self.report_paths = {} # Rapor yollarını saklamak için (buna gerek kalmadı)
-
-            for scan in all_scans:
-                # Veritabanı satırını (dict) al
-                scan_id = scan['id']
-                target = scan['target_full_domain']
-                status = scan['status']
-                # Tarih formatlaması
-                created_time = datetime.datetime.strptime(scan['created_at'], '%Y-%m-%d %H:%M:%S.%f').strftime('%Y-%m-%d %H:%M')
-
-                # Duruma göre satıra etiket (renk) ata
-                tag = ""
-                if status == "COMPLETED":
-                    tag = "completed"
-                elif status == "RUNNING" or status == "REPORTING":
-                    tag = "running"
-                elif status == "FAILED":
-                    tag = "failed"
-                else:
-                    tag = "pending" # PENDING durumu
-
-                # Veriyi tabloya ekle
-                self.scan_tree.insert("", "end", iid=scan_id, values=(scan_id, target, status, created_time), tags=(tag,))
+            ui(0.1, "Modüller çalışıyor...")
+            img = "pentest-araci-kali:v1.5"
+            dom = data['domain']
+            
+            # Paralel İşlemler
+            with concurrent.futures.ThreadPoolExecutor() as ex:
+                fs = []
+                # Basic Scan veya Full Scan ayrımı burada yapılabilir
+                fs.append(ex.submit(recon_module.run_reconnaissance, dom, dom, img, out))
+                fs.append(ex.submit(web_app_module.run_web_tests, dom, img, out))
+                # Full Scan ise API testini de ekle
+                if data['scan_type'] == 'full_scan':
+                    fs.append(ex.submit(api_module.run_api_tests, dom, img, out))
                 
-            # Etiketlerin renklerini ayarla (Mevcut kodunuzda vardı, tekrar tanımlayalım)
-            self.scan_tree.tag_configure("completed", foreground="#4CAF50") # Yeşil
-            self.scan_tree.tag_configure("running", foreground="#2196F3")   # Mavi
-            self.scan_tree.tag_configure("failed", foreground="#F44336")    # Kırmızı
-            self.scan_tree.tag_configure("pending", foreground="#FF9800")  # Turuncu
+                for f in concurrent.futures.as_completed(fs): pass
 
-        except Exception as e:
-            self.add_log(f"Dashboard yenilenirken hata oluştu: {e}")
-            messagebox.showerror("Veritabanı Hatası", f"Taramalar çekilirken bir hata oluştu: {e}")
-
-    def on_scan_select(self, event):
-        """Kullanıcı tablodan bir tarama seçtiğinde çalışır."""
-        try:
-            selected_item = self.scan_tree.selection()[0] # Seçilen ilk öğe (ID)
-            values = self.scan_tree.item(selected_item, "values")
-            status = values[2] # Durum bilgisi
+            # Ek Modüller
+            if data['internal_ip']:
+                ui(0.6, "İç ağ taranıyor...")
+                internal_network_module.run_internal_tests(data['internal_ip'], img, out)
             
-            # Raporu Aç butonu sadece 'Tamamlandı' ise aktif olsun
-            if status == "COMPLETED":
-                self.open_report_button.configure(state="normal")
+            if data['apk_path']:
+                ui(0.7, "Mobil analiz...")
+                mobile_module.run_mobile_tests(data['apk_path'], out, img)
+
+            # Raporlama
+            ui(0.9, "AI Raporu hazırlanıyor...")
+            database.update_scan_status(scan_id, 'REPORTING')
+            
+            path = report_module.generate_report(out, dom, data['gemini_key'])
+            
+            if path:
+                database.complete_scan(scan_id, path, "COMPLETED")
+                ui(1.0, "Tamamlandı!")
+                messagebox.showinfo("Bitti", "Tarama başarıyla tamamlandı!")
             else:
-                self.open_report_button.configure(state="disabled")
-        except IndexError:
-            # Seçim kaldırıldı
-            self.open_report_button.configure(state="disabled")
+                database.complete_scan(scan_id, None, "FAILED")
+                ui(0.0, "Raporlama Hatası")
 
-    def open_report(self):
-        """'Raporu Aç' butonuna basıldığında ilgili HTML raporunu açar."""
-        try:
-            selected_item = self.scan_tree.selection()[0]
-            scan_id = int(selected_item)
-            
-            # Rapor yolunu veritabanından al
-            scan_data = database.get_scan_by_id(scan_id)
-            if not scan_data:
-                messagebox.showerror("Hata", "Tarama veritabanında bulunamadı.")
-                return
-
-            report_path = scan_data['report_file_path']
-            
-            if not report_path or not os.path.exists(report_path):
-                self.add_log(f"Rapor dosyası bulunamadı: {report_path}")
-                messagebox.showwarning("Rapor Bulunamadı", f"Rapor dosyası '{report_path}' konumunda bulunamadı. Silinmiş olabilir.")
-                return
-
-            self.add_log(f"Rapor açılıyor: {report_path}")
-            
-            # Raporu varsayılan web tarayıcısında aç
-            webbrowser.open(f"file://{os.path.realpath(report_path)}")
-
-        except IndexError:
-            messagebox.showwarning("Hata", "Lütfen raporunu açmak için tamamlanmış bir tarama seçin.")
         except Exception as e:
-            messagebox.showerror("Hata", f"Rapor açılırken bir hata oluştu: {e}")
+            logging.error(e)
+            database.complete_scan(scan_id, None, "FAILED")
+            ui(0.0, f"Hata: {str(e)}")
+            messagebox.showerror("Hata", str(e))
+        finally:
+            self.btn_start.configure(state="normal", text="Taramayı Başlat  🚀")
+            self.populate_scan_list()
 
-    def delete_scan(self):
-        """Seçili taramayı veritabanından ve diskten (çıktı klasörü) siler."""
+    def open_report_gui(self):
         try:
-            selected_item = self.scan_tree.selection()[0]
-            scan_id = int(selected_item)
+            sel = self.tree.selection()
+            if not sel: return
+            sid = self.tree.item(sel[0])['values'][0]
+            sdata = database.get_scan_by_id(sid)
+            path = sdata['report_file_path']
             
-            scan_data = database.get_scan_by_id(scan_id)
-            if not scan_data:
-                messagebox.showerror("Hata", "Tarama zaten silinmiş olabilir.")
-                self.populate_scan_list()
+            # HTML -> JSON dönüşüm kontrolü (Eski raporlar için)
+            if path and path.endswith(".html"): path = path.replace(".html", ".json")
+            
+            if not path or not os.path.exists(path):
+                messagebox.showerror("Hata", "Rapor dosyası bulunamadı.")
                 return
 
-            if messagebox.askyesno("Tarama Sil", f"ID: {scan_id} ({scan_data['target_full_domain']}) taramasını silmek istediğinize emin misiniz?\nBu işlem geri alınamaz."):
+            with open(path, 'r', encoding='utf-8') as f: d = json.load(f)
+            
+            # Rapor Penceresi
+            rw = ctk.CTkToplevel(self)
+            rw.title(f"Rapor: {d.get('domain')}")
+            rw.geometry("1000x800")
+            rw.configure(fg_color=COLORS["bg_main"])
+            
+            # Header
+            hf = ctk.CTkFrame(rw, fg_color=COLORS["bg_card"])
+            hf.pack(fill="x", padx=20, pady=20)
+            ctk.CTkLabel(hf, text=f"🎯 {d.get('domain')}", font=("Roboto", 22, "bold"), text_color="white").pack(anchor="w", padx=20, pady=15)
+            
+            scr = ctk.CTkScrollableFrame(rw, fg_color="transparent")
+            scr.pack(fill="both", expand=True, padx=20, pady=10)
+            
+            for anz in d.get("analizler", []):
+                c = ctk.CTkFrame(scr, fg_color=COLORS["bg_card"], corner_radius=10)
+                c.pack(fill="x", pady=10)
                 
-                # 1. Diskten çıktı klasörünü sil
-                output_dir = scan_data['output_directory']
-                if output_dir and os.path.isdir(output_dir):
-                    try:
-                        shutil.rmtree(output_dir)
-                        self.add_log(f"Çıktı klasörü silindi: {output_dir}")
-                    except Exception as e:
-                        self.add_log(f"Hata: Çıktı klasörü silinemedi: {e}")
-                        messagebox.showwarning("Dosya Hatası", f"Çıktı klasörü silinemedi: {e}\nKayıt veritabanından yine de silinecek.")
+                risk = anz.get("risk_seviyesi", "").lower()
+                rc = COLORS["success"]
+                if "yüksek" in risk or "high" in risk: rc = COLORS["warning"]
+                if "kritik" in risk or "critical" in risk: rc = COLORS["danger"]
+                
+                h = ctk.CTkFrame(c, fg_color="transparent")
+                h.pack(fill="x", padx=15, pady=10)
+                ctk.CTkLabel(h, text=anz.get("arac_adi"), font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(side="left")
+                ctk.CTkLabel(h, text=anz.get("risk_seviyesi").upper(), text_color="white", fg_color=rc, corner_radius=6, padx=8).pack(side="right")
+                
+                ctk.CTkLabel(c, text=anz.get("ozet"), font=("Roboto", 12), text_color=COLORS["text_white"], wraplength=900, justify="left").pack(anchor="w", padx=15, pady=(0, 15))
 
-                # 2. Veritabanından kaydı sil
-                database.delete_scan_from_db(scan_id)
-                self.add_log(f"Tarama (ID: {scan_id}) veritabanından silindi.")
-                
-                # 3. Listeyi yenile
-                self.populate_scan_list() 
-                
-        except IndexError:
-            messagebox.showwarning("Hata", "Lütfen silmek için bir tarama seçin.")
         except Exception as e:
-            messagebox.showerror("Hata", f"Silme işlemi sırasında bir hata oluştu: {e}")
+            messagebox.showerror("Hata", str(e))
 
-
-# ==================================================================
-# UYGULAMAYI BAŞLAT
-# ==================================================================
 if __name__ == "__main__":
     app = HydraScanApp()
     app.mainloop()
