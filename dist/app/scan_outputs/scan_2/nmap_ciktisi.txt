@@ -1,6 +1,0 @@
---- HATA OLUŞTU ---
-Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_2:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'nmap -sV -T4 www.mgorkemkilic.com']
-Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_2:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'nmap -sV -T4 www.mgorkemkilic.com']' returned non-zero exit status 125.
-Starting Nmap 7.95 ( https://nmap.org ) at 2025-10-31 07:13 UTC
-
-time="2025-10-31T10:14:02+03:00" level=error msg="error waiting for container: unexpected EOF"

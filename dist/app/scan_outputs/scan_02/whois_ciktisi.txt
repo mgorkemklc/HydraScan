@@ -1,5 +1,0 @@
---- HATA OLUÞTU ---
-Komut çalýþtýrýlamadý: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\pentest yazýlým\\pentest_raporu_localhost_3000_20250820-110157:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'whois localhost:3000']
-Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\pentest yazýlým\\pentest_raporu_localhost_3000_20250820-110157:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'whois localhost:3000']' returned non-zero exit status 1.
-No whois server is known for this kind of object.
-

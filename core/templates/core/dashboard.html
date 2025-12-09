@@ -1,58 +1,136 @@
 {% extends 'core/base.html' %}
 
-{% block title %}HydraScan - Dashboard{% endblock %}
+{% block title %}Genel Bakış{% endblock %}
+{% block header_title %}Genel Bakış{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>Gösterge Paneli</h1>
-        <a href="{% url 'start_scan' %}" class="btn btn-primary d-lg-none">+ Yeni Tarama</a>
+<div class="space-y-6">
+    <!-- İstatistik Kartları -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Toplam Tarama -->
+        <div class="glass-panel p-6 rounded-xl hover:bg-gray-800/80 transition-all duration-300 transform hover:-translate-y-1 shadow-lg">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">Toplam Tarama</p>
+                    <h3 class="text-3xl font-bold text-white mt-1">{{ total_scans|default:"0" }}</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+            </div>
+            <div class="flex items-center text-xs text-green-400">
+                <i class="fa-solid fa-check mr-1"></i> Sistem Aktif
+            </div>
+        </div>
+
+        <!-- Devam Eden Taramalar -->
+        <div class="glass-panel p-6 rounded-xl hover:bg-gray-800/80 transition-all duration-300 transform hover:-translate-y-1 shadow-lg">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">Devam Eden</p>
+                    <h3 class="text-3xl font-bold text-accent mt-1">{{ active_scans_count|default:"0" }}</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center text-accent animate-pulse">
+                    <i class="fa-solid fa-radar"></i>
+                </div>
+            </div>
+            <div class="flex items-center text-xs text-accent">
+                <i class="fa-solid fa-spinner fa-spin mr-1"></i> Şu an çalışıyor
+            </div>
+        </div>
+
+        <!-- Kritik Açıklar (Statik Örnek) -->
+        <div class="glass-panel p-6 rounded-xl hover:bg-gray-800/80 transition-all duration-300 transform hover:-translate-y-1 shadow-lg">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">Tespit Edilen</p>
+                    <h3 class="text-3xl font-bold text-red-500 mt-1 neon-text">{{ total_vulns|default:"0" }}</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400">
+                    <i class="fa-solid fa-bug"></i>
+                </div>
+            </div>
+            <div class="flex items-center text-xs text-red-400">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i> Potansiyel Risk
+            </div>
+        </div>
+        
+        <!-- Sistem Sağlığı -->
+        <div class="glass-panel p-6 rounded-xl hover:bg-gray-800/80 transition-all duration-300 transform hover:-translate-y-1 shadow-lg">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">Sistem Sağlığı</p>
+                    <h3 class="text-3xl font-bold text-green-400 mt-1">%100</h3>
+                </div>
+                <div class="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                </div>
+            </div>
+            <div class="flex items-center text-xs text-gray-400">
+                Docker servisleri aktif
+            </div>
+        </div>
     </div>
 
-    <div class="card">
-        <div class="card-header">
-            Geçmiş Taramalar
+    <!-- Son Taramalar Tablosu -->
+    <div class="glass-panel rounded-xl overflow-hidden shadow-2xl border border-gray-700">
+        <div class="px-6 py-4 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
+            <h3 class="font-semibold text-lg text-white">Son Taramalar</h3>
+            <a href="{% url 'start_scan' %}" class="text-xs bg-accent hover:bg-accent-hover text-gray-900 font-bold py-2 px-4 rounded-lg transition-all shadow-lg shadow-accent/20">
+                <i class="fa-solid fa-plus mr-1"></i> Yeni
+            </a>
         </div>
-        <div class="card-body">
-            <table class="table table-hover">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr>
-                        <th scope="col">ID</th>
-                        <th scope="col">Hedef</th>
-                        <th scope="col">Durum</th>
-                        <th scope="col">Başlangıç</th>
-                        <th scope="col">Detay</th>
+                    <tr class="text-xs uppercase text-gray-400 bg-gray-800/50 border-b border-gray-700">
+                        <th class="px-6 py-4 font-semibold">Hedef</th>
+                        <th class="px-6 py-4 font-semibold">Tarih</th>
+                        <th class="px-6 py-4 font-semibold">Durum</th>
+                        <th class="px-6 py-4 font-semibold text-right">İşlem</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for scan in scans %}
-                    <tr>
-                        <th scope="row">{{ scan.id }}</th>
-                        <td>{{ scan.target_full_domain }}</td>
-                        <td>
-                            {% if scan.status == 'COMPLETED' %}
-                                <span class="badge bg-success">Tamamlandı</span>
-                            {% elif scan.status == 'RUNNING' or scan.status == 'REPORTING' %}
-                                <span class="badge bg-info text-dark">Çalışıyor...</span>
-                            {% elif scan.status == 'FAILED' %}
-                                <span class="badge bg-danger">Hata</span>
+                <tbody class="divide-y divide-gray-700 text-sm text-gray-300">
+                    {% for scan in recent_scans %}
+                    <tr class="hover:bg-gray-800/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded bg-gray-700 flex items-center justify-center mr-3 text-accent">
+                                    <i class="fa-solid fa-globe"></i>
+                                </div>
+                                <div class="font-medium text-white">{{ scan.target_ip }}</div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 font-mono text-xs">{{ scan.scan_date|date:"d M Y H:i" }}</td>
+                        <td class="px-6 py-4">
+                            {% if scan.status == 'completed' %}
+                                <span class="inline-flex items-center text-green-400 bg-green-400/10 px-2 py-1 rounded text-xs">
+                                    <i class="fa-solid fa-check mr-1"></i> Tamamlandı
+                                </span>
+                            {% elif scan.status == 'running' %}
+                                <span class="inline-flex items-center text-accent bg-accent/10 px-2 py-1 rounded text-xs animate-pulse">
+                                    <i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Sürüyor
+                                </span>
                             {% else %}
-                                <span class="badge bg-secondary">Beklemede</span>
+                                <span class="text-gray-400">{{ scan.status }}</span>
                             {% endif %}
                         </td>
-                        <td>{{ scan.created_at|date:"d M Y, H:i" }}</td>
-                        <td>
-                            <a href="{% url 'scan_detail_page' scan.id %}" class="btn btn-sm btn-outline-secondary">
-                                Görüntüle
+                        <td class="px-6 py-4 text-right">
+                            <a href="{% url 'scan_detail' scan.id %}" class="text-gray-400 hover:text-white transition-colors">
+                                <i class="fa-solid fa-eye"></i> İncele
                             </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center">Henüz bir tarama başlatılmamış.</td>
+                        <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                            Henüz hiç tarama yapılmamış.
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
+</div>
 {% endblock %}

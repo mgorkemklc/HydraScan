@@ -1,36 +1,76 @@
 {% extends 'core/base.html' %}
 
-{% block title %}Yeni Tarama - HydraScan{% endblock %}
+{% block title %}Yeni Tarama{% endblock %}
+{% block header_title %}Yeni Tarama Başlat{% endblock %}
 
 {% block content %}
-    <h1>Yeni Tarama Başlat</h1>
-    <hr>
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card card-body">
-                <form method="POST">
-                    {% csrf_token %} 
+<div class="max-w-4xl mx-auto">
+    <div class="glass-panel p-8 rounded-2xl border border-gray-700 shadow-2xl relative overflow-hidden">
+        <!-- Dekoratif arka plan efekti -->
+        <div class="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-accent/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <h2 class="text-2xl font-bold text-white mb-6 flex items-center">
+            <i class="fa-solid fa-rocket text-accent mr-3"></i> Tarama Yapılandırması
+        </h2>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- Hata Mesajları -->
+            {% if form.errors %}
+            <div class="bg-red-500/10 border border-red-500 text-red-400 p-4 rounded-lg">
+                {{ form.errors }}
+            </div>
+            {% endif %}
+
+            <!-- Hedef Input -->
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Hedef (IP veya Domain)</label>
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-bullseye text-gray-500 group-focus-within:text-accent transition-colors"></i>
+                    </div>
+                    <!-- Form inputunu manuel render ediyoruz -->
+                    <input type="text" name="target_ip" id="id_target_ip" required 
+                           class="bg-gray-800 border border-gray-600 text-white text-sm rounded-lg focus:ring-accent focus:border-accent block w-full pl-10 p-3 transition-all shadow-sm group-focus-within:ring-2 group-focus-within:ring-offset-2 group-focus-within:ring-offset-gray-900" 
+                           placeholder="örn: 192.168.1.1 veya example.com">
+                </div>
+            </div>
+
+            <!-- Tarama Tipi Seçimi (Görsel Seçenekler) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">Tarama Modülü</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Basic Scan -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="scan_type" value="basic_scan" class="peer sr-only" checked>
+                        <div class="p-4 rounded-xl bg-gray-800 border border-gray-600 hover:bg-gray-700 peer-checked:border-accent peer-checked:bg-accent/10 peer-checked:ring-1 peer-checked:ring-accent transition-all h-full">
+                            <div class="text-accent mb-2"><i class="fa-solid fa-network-wired text-xl"></i></div>
+                            <div class="font-semibold text-white">Temel Ağ Taraması</div>
+                            <div class="text-xs text-gray-400 mt-1">Hızlı port taraması ve servis tespiti (Nmap Basic).</div>
+                        </div>
+                    </label>
                     
-                    <div class="mb-3">
-                        <label for="domain_input" class="form-label">Hedef Domain (örn: site.com:8080):</label>
-                        <input type="text" class="form-control" id="domain_input" name="domain_input" required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="internal_ip_range" class="form-label">İç Ağ IP Aralığı (Opsiyonel):</label>
-                        <input type="text" class="form-control" id="internal_ip_range" name="internal_ip_range" placeholder="örn: 192.168.1.0/24">
-                    </div>
-
-                    <hr>
-                    <button type="submit" class="btn btn-primary btn-lg">Taramayı Başlat</button>
-                </form>
+                    <!-- Full Scan -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="scan_type" value="full_scan" class="peer sr-only">
+                        <div class="p-4 rounded-xl bg-gray-800 border border-gray-600 hover:bg-gray-700 peer-checked:border-accent peer-checked:bg-accent/10 peer-checked:ring-1 peer-checked:ring-accent transition-all h-full">
+                            <div class="text-red-400 mb-2"><i class="fa-solid fa-radiation text-xl"></i></div>
+                            <div class="font-semibold text-white">Kapsamlı Tarama</div>
+                            <div class="text-xs text-gray-400 mt-1">Tüm portlar, zafiyet analizi ve detaylı raporlama.</div>
+                        </div>
+                    </label>
+                </div>
             </div>
-        </div>
-        <div class="col-md-4">
-            <div class="alert alert-info">
-                <strong>Bilgilendirme:</strong>
-                <p>Lütfen tarama başlatmadan önce hedef sistemden gerekli izinleri aldığınızdan emin olun.</p>
+
+            <!-- Butonlar -->
+            <div class="pt-4 flex justify-end border-t border-gray-700 mt-6">
+                <a href="{% url 'dashboard' %}" class="mr-4 py-3 px-4 text-gray-400 hover:text-white font-medium text-sm transition-colors">İptal</a>
+                <button type="submit" class="bg-gradient-to-r from-accent to-blue-600 hover:from-blue-400 hover:to-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg shadow-blue-500/30 transform hover:scale-105 transition-all flex items-center">
+                    <i class="fa-solid fa-play mr-2"></i> Taramayı Başlat
+                </button>
             </div>
-        </div>
+        </form>
     </div>
+</div>
 {% endblock %}

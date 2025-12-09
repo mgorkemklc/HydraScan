@@ -1,4 +1,0 @@
---- HATA OLUÞTU ---
-Komut çalýþtýrýlamadý: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\pentest yazýlým\\pentest_raporu_localhost_3000_20250820-110157:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'timeout 300 responder -I eth0 -v']
-Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\pentest yazýlým\\pentest_raporu_localhost_3000_20250820-110157:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'timeout 300 responder -I eth0 -v']' returned non-zero exit status 124.
-

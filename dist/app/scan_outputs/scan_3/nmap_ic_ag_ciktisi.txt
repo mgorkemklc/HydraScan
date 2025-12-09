@@ -1,7 +1,0 @@
---- HATA OLUŞTU ---
-Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_3:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'nmap -T4 -F 192.168.1.0/24']
-Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\dist\\app\\scan_outputs\\scan_3:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'nmap -T4 -F 192.168.1.0/24']' returned non-zero exit status 127.
-
-docker: error during connect: Head "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/_ping": open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
-
-Run 'docker run --help' for more information
