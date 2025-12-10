@@ -16,17 +16,13 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Taramalar Tablosu
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS scans (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER, -- Hangi kullanıcının taraması
+        user_id INTEGER,
         target_full_domain TEXT NOT NULL,
         internal_ip_range TEXT,
         apk_file_s3_path TEXT, 
-        wifi_iface TEXT,
-        wifi_bssid TEXT,
-        wifi_channel TEXT,
         status TEXT NOT NULL DEFAULT 'PENDING',
         output_directory TEXT,
         report_file_path TEXT,
@@ -35,7 +31,6 @@ def init_db():
     );
     """)
 
-    # Kullanıcılar Tablosu (YENİ)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,32 +41,29 @@ def init_db():
     );
     """)
     
-    # Varsayılan Admin Kullanıcısı (admin / admin123)
+    # Varsayılan admin (İstersen bunu production'da kaldırabilirsin ama test için kalsın)
     try:
         admin_pass = hashlib.sha256("admin123".encode()).hexdigest()
         cursor.execute("INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)", 
                        ("admin", admin_pass, "admin", datetime.datetime.now()))
     except sqlite3.IntegrityError:
-        pass # Zaten var
+        pass
 
     conn.commit()
     conn.close()
 
 # --- KULLANICI İŞLEMLERİ ---
 def login_check(username, password):
-    """Kullanıcı adı ve şifreyi doğrular."""
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     conn.close()
-    
     if user:
         input_hash = hashlib.sha256(password.encode()).hexdigest()
         if input_hash == user['password_hash']:
-            return user # Başarılı
+            return user
     return None
 
 def register_user(username, password):
-    """Yeni kullanıcı oluşturur (SaaS mantığı için)."""
     conn = get_db_connection()
     pass_hash = hashlib.sha256(password.encode()).hexdigest()
     try:
@@ -80,9 +72,16 @@ def register_user(username, password):
         conn.commit()
         return True
     except sqlite3.IntegrityError:
-        return False # Kullanıcı adı dolu
+        return False
     finally:
         conn.close()
+
+def user_exists(username):
+    """Kullanıcı adının dolu olup olmadığını kontrol eder."""
+    conn = get_db_connection()
+    exists = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone()
+    conn.close()
+    return exists is not None
 
 # --- TARAMA İŞLEMLERİ ---
 def create_scan(scan_data, user_id=None):
@@ -103,6 +102,26 @@ def create_scan(scan_data, user_id=None):
         'PENDING',
         now
     ))
+    new_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+# Manuel import için (Sync fonksiyonu kullanacak)
+def insert_imported_scan(user_id, domain, status, output_dir, report_path, created_at):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Mükerrer kayıt kontrolü (Aynı klasör yolu var mı?)
+    check = cursor.execute("SELECT id FROM scans WHERE output_directory = ?", (output_dir,)).fetchone()
+    if check:
+        return check['id'] # Zaten varsa ID dön
+
+    cursor.execute("""
+    INSERT INTO scans (
+        user_id, target_full_domain, status, output_directory, report_file_path, created_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, domain, status, output_dir, report_path, created_at, created_at))
     
     new_id = cursor.lastrowid
     conn.commit()
@@ -110,12 +129,11 @@ def create_scan(scan_data, user_id=None):
     return new_id
 
 def get_all_scans(user_id=None):
-    """Eğer user_id verilirse sadece o kullanıcının taramalarını getirir."""
     conn = get_db_connection()
     if user_id:
         rows = conn.execute("SELECT * FROM scans WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
     else:
-        rows = conn.execute("SELECT * FROM scans ORDER BY created_at DESC").fetchall() # Admin hepsi
+        rows = conn.execute("SELECT * FROM scans ORDER BY created_at DESC").fetchall()
     conn.close()
     return rows
 

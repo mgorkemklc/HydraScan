@@ -1,5 +1,6 @@
 # core/report_module.py
 
+import time
 import os
 import json
 import google.generativeai as genai
@@ -77,6 +78,9 @@ def generate_report(output_dir, domain, api_key):
         file_path = os.path.join(output_dir, filename)
         
         try:
+            
+            time.sleep(10) 
+
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
