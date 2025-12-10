@@ -1,0 +1,5 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_3:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'wapiti -u http://mgorkemkilic.com --flush-session -v 1']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_3:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'wapiti -u http://mgorkemkilic.com --flush-session -v 1']' returned non-zero exit status 127.
+
+/bin/bash: line 1: wapiti: command not found

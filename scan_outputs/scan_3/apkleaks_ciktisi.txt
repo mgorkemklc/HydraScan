@@ -1,0 +1,28 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_3:/output', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\100day100app\\app\\release\\release\\release:/app', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'apkleaks -f /app/app-release.aab']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_3:/output', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\100day100app\\app\\release\\release\\release:/app', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'apkleaks -f /app/app-release.aab']' returned non-zero exit status 1.
+[93mCan't find jadx binary.
+[0m[94mDo you want to download jadx? (Y/n) [0m[93m
+** Done with nothing. ¯\_(ツ)_/¯
+[0m
+[95m     _    ____  _  ___               _        
+    / \  |  _ \| |/ / |    ___  __ _| | _____ 
+   / _ \ | |_) | ' /| |   / _ \/ _` | |/ / __|
+  / ___ \|  __/| . \| |__|  __/ (_| |   <\__ \
+ /_/   \_\_|   |_|\_\_____\___|\__,_|_|\_\___/
+ v2.6.3
+ --
+ Scanning APK file for URIs, endpoints & secrets
+ (c) 2020-2024, dwisiswant0
+[0m
+Traceback (most recent call last):
+  File "/usr/local/bin/apkleaks", line 7, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/apkleaks/cli.py", line 37, in main
+    init.integrity()
+    ~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/dist-packages/apkleaks/apkleaks.py", line 62, in integrity
+    choice = input().lower()
+             ~~~~~^^
+EOFError: EOF when reading a line

@@ -56,7 +56,7 @@ def generate_report(output_dir, domain, api_key):
         
         try:
             # --- API KOTASI İÇİN BEKLEME ---
-            logging.info(f"[*] {tool_name} analiz ediliyor... (Kota için 15sn bekleniyor)")
+            logging.info(f"[*] {tool_name} analiz ediliyor... (Kota için 5sn bekleniyor)")
             time.sleep(5) 
             # -------------------------------
 

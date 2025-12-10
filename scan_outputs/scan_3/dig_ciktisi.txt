@@ -1,0 +1,20 @@
+
+; <<>> DiG 9.20.11-4-Debian <<>> mgorkemkilic.com ANY
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 15785
+;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;mgorkemkilic.com.		IN	ANY
+
+;; ANSWER SECTION:
+mgorkemkilic.com.	43200	IN	NS	ns1.dns-parking.com.
+mgorkemkilic.com.	43200	IN	NS	ns2.dns-parking.com.
+
+;; Query time: 121 msec
+;; SERVER: 192.168.65.7#53(192.168.65.7) (TCP)
+;; WHEN: Wed Dec 10 10:17:43 UTC 2025
+;; MSG SIZE  rcvd: 132
+
+

@@ -16,7 +16,7 @@ from core import recon_module, web_app_module, api_module, internal_network_modu
 # --- CONFIG & LOGGING ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# GÜVENLİK AYARI: Config dosyasını proje klasöründen çıkarıp kullanıcı dizinine alıyoruz.
+# GÜVENLİK AYARI
 USER_HOME = os.path.expanduser("~")
 APP_DIR = os.path.join(USER_HOME, ".hydrascan")
 if not os.path.exists(APP_DIR):
@@ -29,7 +29,7 @@ COLORS = {
     "accent": "#38bdf8", "accent_hover": "#0ea5e9",
     "text_white": "#f1f5f9", "text_gray": "#94a3b8",
     "danger": "#ef4444", "success": "#22c55e", "warning": "#f59e0b",
-    "running": "#3b82f6", "border": "#334155"
+    "running": "#3b82f6", "border": "#334155", "log_bg": "#0d1117"
 }
 
 ctk.set_appearance_mode("Dark")
@@ -100,7 +100,6 @@ class HydraScanApp(ctk.CTk):
         self.config = {"api_key": "", "theme": "Dark"}
         if os.path.exists(CONFIG_FILE):
             try:
-                # DÜZELTME 1: try-with bloğu ayrıldı
                 with open(CONFIG_FILE, 'r') as f:
                     self.config.update(json.load(f))
             except:
@@ -115,20 +114,12 @@ class HydraScanApp(ctk.CTk):
     def show_login_screen(self):
         for w in self.container.winfo_children(): w.destroy()
         
-        frame = ctk.CTkFrame(
-            self.container, 
-            fg_color=COLORS["bg_panel"], 
-            corner_radius=20, 
-            border_width=1, 
-            border_color=COLORS["border"], 
-            width=400, 
-            height=500
-        )
+        frame = ctk.CTkFrame(self.container, fg_color=COLORS["bg_panel"], corner_radius=20, border_width=1, border_color=COLORS["border"], width=400, height=500)
         frame.place(relx=0.5, rely=0.5, anchor="center")
         
         ctk.CTkLabel(frame, text="🐉", font=("Arial", 60)).pack(pady=(40, 10))
         ctk.CTkLabel(frame, text="HYDRASCAN", font=("Roboto", 28, "bold"), text_color="white").pack()
-        ctk.CTkLabel(frame, text="SaaS Security Login", font=("Roboto", 14), text_color=COLORS["accent"]).pack(pady=(0, 30))
+        ctk.CTkLabel(frame, text="Kurumsal Güvenlik Girişi", font=("Roboto", 14), text_color=COLORS["accent"]).pack(pady=(0, 30))
 
         self.entry_user = ctk.CTkEntry(frame, placeholder_text="Kullanıcı Adı", height=50, fg_color=COLORS["bg_main"], border_color=COLORS["border"], text_color="white")
         self.entry_user.pack(fill="x", padx=40, pady=10)
@@ -139,19 +130,13 @@ class HydraScanApp(ctk.CTk):
         
         reg_frame = ctk.CTkFrame(frame, fg_color="transparent")
         reg_frame.pack(pady=10)
-        ctk.CTkLabel(reg_frame, text="Hesabın yok mu?", text_color=COLORS["text_gray"]).pack(side="left")
-        ctk.CTkButton(reg_frame, text="Kayıt Ol", fg_color="transparent", text_color=COLORS["accent"], width=60, hover=False, font=("Roboto", 12, "bold"), command=self.show_register_screen).pack(side="left")
+        ctk.CTkLabel(reg_frame, text="Erişiminiz yok mu?", text_color=COLORS["text_gray"], font=("Roboto", 12)).pack(side="left")
+        ctk.CTkButton(reg_frame, text="Kayıt Olun", fg_color="transparent", text_color=COLORS["accent"], width=60, hover=False, font=("Roboto", 12, "bold"), command=self.show_register_screen).pack(side="left")
 
     def show_register_screen(self):
         for w in self.container.winfo_children(): w.destroy()
         
-        frame = ctk.CTkFrame(
-            self.container, 
-            fg_color=COLORS["bg_panel"], 
-            corner_radius=20, 
-            width=400, 
-            height=550
-        )
+        frame = ctk.CTkFrame(self.container, fg_color=COLORS["bg_panel"], corner_radius=20, width=400, height=550)
         frame.place(relx=0.5, rely=0.5, anchor="center")
         
         ctk.CTkLabel(frame, text="👤", font=("Arial", 60)).pack(pady=(40, 10))
@@ -189,7 +174,7 @@ class HydraScanApp(ctk.CTk):
             self.show_login_screen()
 
     # ==================================================================
-    # SYNC (Geçmiş Raporları Bulma)
+    # SYNC
     # ==================================================================
     def sync_filesystem_to_db(self):
         if not os.path.exists("scan_outputs"): return
@@ -207,13 +192,11 @@ class HydraScanApp(ctk.CTk):
                 date_obj = datetime.datetime.fromtimestamp(timestamp)
                 domain_name = "Bilinmeyen Hedef"
                 
-                # DÜZELTME 2: try-with bloğu ayrıldı
                 try:
                     with open(report_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                         domain_name = data.get("domain", "Bilinmeyen Hedef")
-                except: 
-                    pass
+                except: pass
                 
                 database.insert_imported_scan(
                     self.current_user['id'], domain_name, "COMPLETED", 
@@ -343,7 +326,7 @@ class HydraScanApp(ctk.CTk):
         for s in scans[:10]: self.insert_scan_to_tree(self.tree, s)
 
     # ==================================================================
-    # YENİ TARAMA (Düzeltildi)
+    # YENİ TARAMA (GÜNCELLENDİ: MODÜLER SEÇİM + APK)
     # ==================================================================
     def create_new_scan_view(self):
         view = ctk.CTkFrame(self.main_area, fg_color="transparent")
@@ -352,94 +335,182 @@ class HydraScanApp(ctk.CTk):
         scroll = ctk.CTkScrollableFrame(view, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=20, pady=20)
 
-        ctk.CTkLabel(scroll, text="Yeni Tarama Yapılandırması", font=("Roboto", 20, "bold"), text_color="white").pack(anchor="w", pady=(0, 20))
+        ctk.CTkLabel(scroll, text="Yeni Tarama Yapılandırması", font=("Roboto", 24, "bold"), text_color="white").pack(anchor="w", pady=(0, 20))
 
-        form_card = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=15, border_width=1, border_color=COLORS["border"])
-        form_card.pack(fill="both", expand=True, padx=5, pady=5)
+        # --- 1. HEDEF BİLGİLERİ ---
+        info_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
+        info_frame.pack(fill="x", pady=10)
         
-        content = ctk.CTkFrame(form_card, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=30, pady=30)
+        ctk.CTkLabel(info_frame, text="Hedef Tanımları", font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=20, pady=(15, 5))
+        
+        self.entry_domain = ctk.CTkEntry(info_frame, placeholder_text="Domain veya IP (örn: example.com)", height=45, border_color=COLORS["border"], fg_color=COLORS["bg_input"])
+        self.entry_domain.pack(fill="x", padx=20, pady=(0, 15))
 
-        ctk.CTkLabel(content, text="Hedef Domain / IP", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w")
-        self.entry_domain = ctk.CTkEntry(content, placeholder_text="örn: example.com", height=50, border_color=COLORS["border"], fg_color=COLORS["bg_main"])
-        self.entry_domain.pack(fill="x", pady=(10, 20))
-
-        ctk.CTkLabel(content, text="Tarama Modülü", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w")
-        
-        module_frame = ctk.CTkFrame(content, fg_color="transparent")
-        module_frame.pack(fill="x", pady=(10, 20))
-        
-        self.scan_type_var = ctk.StringVar(value="basic_scan")
-        
-        card_basic = ScanOptionCard(module_frame, "Temel Tarama", "Hızlı port taraması.", "🌐", "basic_scan", self.scan_type_var)
-        card_basic.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        
-        card_full = ScanOptionCard(module_frame, "Kapsamlı Tarama", "Full zafiyet analizi.", "☢️", "full_scan", self.scan_type_var)
-        card_full.pack(side="left", fill="x", expand=True, padx=(10, 0))
-
-        ctk.CTkLabel(content, text="Gemini API Anahtarı", font=("Roboto", 14, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w")
-        self.entry_key = ctk.CTkEntry(content, placeholder_text="API Key...", show="*", height=50, border_color=COLORS["border"], fg_color=COLORS["bg_main"])
-        self.entry_key.pack(fill="x", pady=(10, 20))
+        self.entry_key = ctk.CTkEntry(info_frame, placeholder_text="Gemini API Anahtarı (Raporlama için)", height=45, border_color=COLORS["border"], fg_color=COLORS["bg_input"])
+        self.entry_key.pack(fill="x", padx=20, pady=(0, 20))
+        # Ayarlardan otomatik çek
         if self.config.get("api_key"): self.entry_key.insert(0, self.config["api_key"])
 
-        self.progress_bar = ctk.CTkProgressBar(content, height=15, progress_color=COLORS["running"])
-        self.progress_bar.set(0)
-        self.lbl_status = ctk.CTkLabel(content, text="", text_color=COLORS["accent"])
+        # --- 2. ARAÇ SEÇİMİ (MODÜLER) ---
+        tools_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
+        tools_frame.pack(fill="x", pady=10)
+        
+        ctk.CTkLabel(tools_frame, text="Aktif Tarama Araçları", font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=20, pady=(15, 10))
 
-        self.btn_launch = ctk.CTkButton(content, text="Taramayı Başlat", height=50, font=("Roboto", 16, "bold"), 
-                                        fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"], text_color=COLORS["bg_main"],
-                                        command=self.start_scan)
+        # Checkbox Değişkenleri
+        self.tools_vars = {
+            "whois": ctk.BooleanVar(value=True),
+            "dig": ctk.BooleanVar(value=True),
+            "nmap": ctk.BooleanVar(value=True),
+            "subfinder": ctk.BooleanVar(value=True),
+            "amass": ctk.BooleanVar(value=False), # Yavaş olduğu için default kapalı
+            "nuclei": ctk.BooleanVar(value=True), # Kritik
+            "gobuster": ctk.BooleanVar(value=True),
+            "sqlmap": ctk.BooleanVar(value=False),
+            "dalfox": ctk.BooleanVar(value=False),
+            "commix": ctk.BooleanVar(value=False),
+            "wapiti": ctk.BooleanVar(value=False),
+            "hydra": ctk.BooleanVar(value=False),
+            "mobile": ctk.BooleanVar(value=False) # APK
+        }
+
+        # Grid yapısı ile araçları dizelim
+        grid_frm = ctk.CTkFrame(tools_frame, fg_color="transparent")
+        grid_frm.pack(fill="x", padx=20, pady=(0, 20))
+
+        tools_list = [
+            ("Whois (Keşif)", "whois"), ("Dig (DNS)", "dig"), ("Nmap (Port)", "nmap"),
+            ("Subfinder (Subdomain)", "subfinder"), ("Amass (Derin Keşif)", "amass"),
+            ("Nuclei (Modern Vuln)", "nuclei"), ("Gobuster (Dizin)", "gobuster"),
+            ("SQLMap (SQLi)", "sqlmap"), ("Dalfox (XSS)", "dalfox"),
+            ("Commix (Cmd Inj)", "commix"), ("Wapiti (Blackbox)", "wapiti"),
+            ("Hydra (Brute Force)", "hydra")
+        ]
+
+        r, c = 0, 0
+        for text, key in tools_list:
+            cb = ctk.CTkCheckBox(grid_frm, text=text, variable=self.tools_vars[key], 
+                                 text_color="white", fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"])
+            cb.grid(row=r, column=c, sticky="w", padx=10, pady=10)
+            c += 1
+            if c > 3: # 4 sütun
+                c = 0; r += 1
+
+        # --- 3. MOBİL ANALİZ (ÖZEL ALAN) ---
+        mobile_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=10, border_color=COLORS["warning"], border_width=1)
+        mobile_frame.pack(fill="x", pady=10)
+        
+        # Checkbox tetiklenince frame'i aç/kapat mantığı eklenebilir ama şimdilik direkt gösteriyoruz
+        cb_mobile = ctk.CTkCheckBox(mobile_frame, text="Mobil Uygulama Analizi (APK / AAB)", variable=self.tools_vars["mobile"], 
+                                    text_color=COLORS["warning"], fg_color=COLORS["warning"], command=self.toggle_apk_input)
+        cb_mobile.pack(anchor="w", padx=20, pady=15)
+
+        self.apk_input_frame = ctk.CTkFrame(mobile_frame, fg_color="transparent")
+        # Başlangıçta gizli olmayacak, toggle fonksiyonu yönetecek
+        
+        self.lbl_apk_path = ctk.CTkLabel(self.apk_input_frame, text="Dosya seçilmedi", text_color=COLORS["text_gray"])
+        self.lbl_apk_path.pack(side="left", padx=10)
+        
+        ctk.CTkButton(self.apk_input_frame, text="Dosya Yükle", width=100, command=self.select_apk, 
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["bg_main"]).pack(side="left")
+        
+        self.selected_apk_path = None
+
+        # --- BAŞLAT ---
+        self.progress_bar = ctk.CTkProgressBar(scroll, height=15, progress_color=COLORS["running"])
+        self.progress_bar.set(0)
+        self.lbl_status = ctk.CTkLabel(scroll, text="", text_color=COLORS["accent"])
+
+        self.btn_launch = ctk.CTkButton(scroll, text="TARAMAYI BAŞLAT 🚀", height=50, 
+                                        font=("Roboto", 16, "bold"), fg_color=COLORS["success"], 
+                                        hover_color="#16a34a", command=self.start_scan)
         self.btn_launch.pack(fill="x", pady=20)
+
+    def toggle_apk_input(self):
+        """Mobil analiz seçilirse dosya yükleme alanını göster."""
+        if self.tools_vars["mobile"].get():
+            self.apk_input_frame.pack(fill="x", padx=40, pady=(0, 20))
+        else:
+            self.apk_input_frame.pack_forget()
+
+    def select_apk(self):
+        # BURASI GÜNCELLENDİ: .aab ve .xapk eklendi
+        path = filedialog.askopenfilename(filetypes=[("Android Package", "*.apk *.aab *.xapk")])
+        if path:
+            self.selected_apk_path = path
+            self.lbl_apk_path.configure(text=os.path.basename(path), text_color="white")
 
     def start_scan(self):
         domain = self.entry_domain.get()
         key = self.entry_key.get()
-        if not domain or not key: return messagebox.showwarning("Hata", "Alanları doldurun.")
-            
-        self.btn_launch.configure(state="disabled", text="Tarama Yapılıyor...")
-        self.entry_domain.configure(state="disabled")
-        self.entry_key.configure(state="disabled")
         
-        self.progress_bar.pack(fill="x", pady=(10, 5))
-        self.lbl_status.pack(pady=5)
+        # Hangi araçlar seçili?
+        selected_tools = [key for key, var in self.tools_vars.items() if var.get()]
+        
+        if not domain or not key:
+            messagebox.showwarning("Eksik", "Domain ve API Key zorunludur.")
+            return
+        
+        if "mobile" in selected_tools and not self.selected_apk_path:
+            messagebox.showwarning("Eksik", "Mobil analiz seçili ancak dosya yüklenmedi.")
+            return
+
+        # UI Kitleme
+        self.btn_launch.configure(state="disabled", text="Sistemler Başlatılıyor...")
+        self.progress_bar.pack(fill="x", pady=10)
         self.progress_bar.configure(mode="indeterminate")
         self.progress_bar.start()
-        self.lbl_status.configure(text="Sistemler başlatılıyor, modüller yükleniyor...")
         
-        scan_data = {"domain": domain, "gemini_key": key, "user_id": self.current_user['id'], "internal_ip": None, "apk_path": None}
+        # Veritabanı Kayıt
+        scan_data = {
+            "domain": domain, 
+            "gemini_key": key, 
+            "apk_path": self.selected_apk_path if "mobile" in selected_tools else None
+        }
         
         try:
+            # User ID veritabanı yapısına göre eklendi
             scan_id = database.create_scan(scan_data, user_id=self.current_user['id'])
-            threading.Thread(target=self.run_scan_logic, args=(scan_id, scan_data), daemon=True).start()
+            
+            # Thread Başlat (Seçili araçları da gönderiyoruz)
+            threading.Thread(target=self.run_scan_logic, args=(scan_id, scan_data, selected_tools), daemon=True).start()
+            
         except Exception as e:
-            messagebox.showerror("Hata", f"Tarama başlatılamadı: {e}")
+            messagebox.showerror("Hata", f"Başlatma hatası: {e}")
             self.reset_scan_ui()
 
-    def run_scan_logic(self, scan_id, data):
+    def run_scan_logic(self, scan_id, data, selected_tools):
         try:
             database.update_scan_status(scan_id, 'RUNNING')
             out = os.path.abspath(f"scan_outputs/scan_{scan_id}")
             if not os.path.exists(out): os.makedirs(out)
             database.set_scan_output_directory(scan_id, out)
             
-            img = "pentest-araci-kali:v1.5"
+            img = "pentest-araci-kali:v1.5" # İmaj isminiz
             dom = data['domain']
             
+            # Paralel Çalıştırma
             with concurrent.futures.ThreadPoolExecutor() as ex:
-                fs = [
-                    ex.submit(recon_module.run_reconnaissance, dom, dom, img, out),
-                    ex.submit(web_app_module.run_web_tests, dom, img, out)
-                ]
-                for f in concurrent.futures.as_completed(fs): pass
+                futures = []
+                
+                # Recon ve Web Modüllerine 'selected_tools' listesini gönderiyoruz
+                futures.append(ex.submit(recon_module.run_reconnaissance, dom, out, img, selected_tools))
+                futures.append(ex.submit(web_app_module.run_web_tests, dom, out, img, selected_tools))
+                
+                if "mobile" in selected_tools and data['apk_path']:
+                    futures.append(ex.submit(mobile_module.run_mobile_tests, data['apk_path'], out, img))
 
+                for f in concurrent.futures.as_completed(futures): pass
+
+            # Raporlama
             database.update_scan_status(scan_id, 'REPORTING')
             path = report_module.generate_report(out, dom, data['gemini_key'])
             
-            if path: database.complete_scan(scan_id, path, "COMPLETED")
-            else: database.complete_scan(scan_id, None, "FAILED")
+            status = "COMPLETED" if path else "FAILED"
+            database.complete_scan(scan_id, path, status)
             
         except Exception as e:
-            logging.error(e)
+            logging.error(f"Scan Error: {e}")
             database.complete_scan(scan_id, None, "FAILED")
         finally:
             self.after(0, self.reset_scan_ui)
@@ -525,21 +596,23 @@ class HydraScanApp(ctk.CTk):
         messagebox.showinfo("Başarılı", "Ayarlar kaydedildi.")
 
     # ==================================================================
-    # DETAY RAPOR
+    # DETAY RAPOR & HAM ÇIKTI (Düzeltildi: Try-With Bloğu)
     # ==================================================================
     def show_report_view(self, scan_id):
         if "ReportView" in self.frames: self.frames["ReportView"].destroy()
+        
         scan = database.get_scan_by_id(scan_id)
         report_data = {}
         path = scan['report_file_path']
         if path and path.endswith(".html"): path = path.replace(".html", ".json")
+        
+        # HATA DÜZELTİLDİ: Try ve with ayrıldı
         if path and os.path.exists(path):
-            # DÜZELTME 3: try-with bloğu ayrıldı (Kritik Hata Düzeltildi)
-            try: 
-                with open(path, 'r', encoding='utf-8') as f: 
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
                     report_data = json.load(f)
-            except: 
-                pass
+            except Exception as e:
+                logging.error(f"Rapor okuma hatası: {e}")
 
         view = ctk.CTkFrame(self.main_area, fg_color="transparent")
         self.frames["ReportView"] = view
@@ -553,26 +626,73 @@ class HydraScanApp(ctk.CTk):
             scroll = ctk.CTkScrollableFrame(view, fg_color="transparent")
             scroll.pack(fill="both", expand=True)
             for analiz in report_data.get("analizler", []):
-                self.create_report_card(scroll, analiz)
+                self.create_report_card(scroll, analiz, scan_id)
         else:
             ctk.CTkLabel(view, text="Rapor verisi yok veya bozuk.", text_color=COLORS["danger"]).pack(pady=50)
 
         self.show_view("ReportView")
 
-    def create_report_card(self, parent, analiz):
+    def create_report_card(self, parent, analiz, scan_id):
         card = ctk.CTkFrame(parent, fg_color=COLORS["bg_panel"], corner_radius=10, border_width=1, border_color=COLORS["border"])
         card.pack(fill="x", pady=10)
+        
         head = ctk.CTkFrame(card, fg_color="transparent")
         head.pack(fill="x", padx=20, pady=15)
+        
+        ctk.CTkLabel(head, text=analiz.get("arac_adi"), font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(side="left")
+        
+        right_box = ctk.CTkFrame(head, fg_color="transparent")
+        right_box.pack(side="right")
+        
+        ctk.CTkButton(right_box, text="📜 Ham Çıktı", width=100, height=28, 
+                      fg_color=COLORS["bg_input"], hover_color=COLORS["bg_main"], 
+                      font=("Roboto", 11),
+                      command=lambda: self.view_raw_log(scan_id, analiz.get("arac_adi"))).pack(side="left", padx=(0, 10))
+
         risk = analiz.get("risk_seviyesi", "").upper()
         col = COLORS["success"]
         if "KRITIK" in risk or "YÜKSEK" in risk or "HATA" in risk: col = COLORS["danger"]
         elif "ORTA" in risk: col = COLORS["warning"]
-        ctk.CTkLabel(head, text=analiz.get("arac_adi"), font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(side="left")
-        ctk.CTkLabel(head, text=risk, text_color="white", fg_color=col, corner_radius=6, padx=8).pack(side="right")
+        ctk.CTkLabel(right_box, text=risk, text_color="white", fg_color=col, corner_radius=6, padx=8).pack(side="left")
+        
         ozet = analiz.get("ozet", "Veri yok")
         if "Quota exceeded" in ozet: ozet = "⚠️ Google API Kotası aşıldı."
         ctk.CTkLabel(card, text=ozet, font=("Roboto", 13), text_color="white", wraplength=900, justify="left").pack(fill="x", padx=20, pady=(0, 15))
+
+    def view_raw_log(self, scan_id, tool_name):
+        scan = database.get_scan_by_id(scan_id)
+        out_dir = scan['output_directory']
+        if not out_dir or not os.path.exists(out_dir):
+            messagebox.showerror("Hata", "Log klasörü bulunamadı.")
+            return
+
+        safe_name = tool_name.lower().replace(" ", "_")
+        filename = f"{safe_name}_ciktisi.txt"
+        filepath = os.path.join(out_dir, filename)
+        
+        content = "Dosya bulunamadı."
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+            except Exception as e: content = f"Okuma hatası: {e}"
+        else:
+            files = glob.glob(os.path.join(out_dir, f"*{safe_name}*.txt"))
+            if files:
+                try:
+                    with open(files[0], 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                except: pass
+
+        log_win = ctk.CTkToplevel(self)
+        log_win.title(f"Ham Çıktı: {tool_name}")
+        log_win.geometry("900x600")
+        log_win.configure(fg_color=COLORS["bg_main"])
+        
+        textbox = ctk.CTkTextbox(log_win, fg_color=COLORS["log_bg"], text_color="#00ff00", font=("Consolas", 12))
+        textbox.pack(fill="both", expand=True, padx=10, pady=10)
+        textbox.insert("0.0", content)
+        textbox.configure(state="disabled")
 
     def create_treeview(self, parent):
         style = ttk.Style()
