@@ -93,3 +93,30 @@ def run_command_in_docker(command, output_file_path, image_name, extra_docker_ar
             
         except Exception as e:
             logging.error(f"[-] Yerel çıktı dosyası yazılırken hata ({output_file_path}): {e}")
+
+import subprocess
+
+def build_docker_image_stream(dockerfile="Dockerfile.pentest", tag="pentest-araci-kali:v1.5"):
+    """
+    Docker imajını yeniden inşa eder.
+    --network=host parametresi DNS sorunlarını çözer.
+    """
+    cmd = ["docker", "build", "--network=host", "-t", tag, "-f", dockerfile, "."]
+    
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        encoding='utf-8',
+        errors='replace'
+    )
+
+    for line in process.stdout:
+        yield line
+
+    process.wait()
+    
+    if process.returncode != 0:
+        raise Exception(f"Docker oluşturma işlemi başarısız oldu. Hata kodu: {process.returncode}")

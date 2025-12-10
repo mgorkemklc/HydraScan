@@ -580,16 +580,77 @@ class HydraScanApp(ctk.CTk):
     def create_settings_view(self):
         view = ctk.CTkFrame(self.main_area, fg_color="transparent")
         self.frames["Settings"] = view
+        
         cont = ctk.CTkFrame(view, fg_color=COLORS["bg_panel"], corner_radius=12)
         cont.pack(fill="both", expand=True, padx=50, pady=20)
+        
         ctk.CTkLabel(cont, text="Uygulama Ayarları", font=("Roboto", 20, "bold"), text_color="white").pack(anchor="w", padx=40, pady=(40, 20))
+
+        # API Key Alanı
         ctk.CTkLabel(cont, text="Varsayılan Gemini API Anahtarı", font=("Roboto", 14, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=40, pady=(10, 5))
         self.set_api = ctk.CTkEntry(cont, placeholder_text="API Key...", width=500, height=45, fg_color=COLORS["bg_main"], border_color=COLORS["border"])
         self.set_api.pack(anchor="w", padx=40, pady=(0, 20))
         if "api_key" in self.config: self.set_api.insert(0, self.config["api_key"])
-        ctk.CTkLabel(cont, text=f"Güvenli Config Yolu: {CONFIG_FILE}", text_color=COLORS["text_gray"], font=("Roboto", 10)).pack(anchor="w", padx=40)
-        ctk.CTkButton(cont, text="Ayarları Kaydet", width=200, height=45, fg_color=COLORS["success"], hover_color="#16a34a", command=self.save_settings).pack(anchor="w", padx=40, pady=20)
+        
+        ctk.CTkButton(cont, text="Ayarları Kaydet", width=200, height=45, fg_color=COLORS["success"], hover_color="#16a34a", command=self.save_settings).pack(anchor="w", padx=40, pady=(0, 40))
 
+        # --- YENİ BÖLÜM: DOCKER BAKIM ---
+        ctk.CTkLabel(cont, text="Sistem Bakımı & Güncelleme", font=("Roboto", 20, "bold"), text_color="white").pack(anchor="w", padx=40, pady=(20, 20))
+        
+        info_text = "Eğer araçlarda 'Command not found' veya 'Missing dependency' hatası alıyorsanız,\nbu butona basarak Pentest Araçlarını (Docker İmajını) yeniden yükleyin.\nBu işlem internet hızınıza bağlı olarak 5-10 dakika sürebilir."
+        ctk.CTkLabel(cont, text=info_text, font=("Roboto", 12), text_color=COLORS["text_gray"], justify="left").pack(anchor="w", padx=40, pady=(0, 15))
+
+        self.btn_update_docker = ctk.CTkButton(cont, text="🛠️ Araçları Güncelle / Onar (Rebuild)", 
+                                               width=300, height=50, 
+                                               fg_color=COLORS["warning"], hover_color="#d97706", text_color="black",
+                                               font=("Roboto", 14, "bold"),
+                                               command=self.start_docker_update)
+        self.btn_update_docker.pack(anchor="w", padx=40, pady=10)
+
+    def start_docker_update(self):
+        """Güncelleme penceresini açar ve işlemi başlatır."""
+        if not messagebox.askyesno("Onay", "Bu işlem Docker imajını sıfırdan oluşturacak ve internet kotası kullanacaktır.\nDevam etmek istiyor musunuz?"):
+            return
+
+        # UI Kitleme (Basitçe butonu pasif yapalım)
+        self.btn_update_docker.configure(state="disabled", text="İşlem Başlatılıyor...")
+
+        # Log Penceresi Aç
+        self.update_window = ctk.CTkToplevel(self)
+        self.update_window.title("Sistem Güncellemesi - Docker Build")
+        self.update_window.geometry("800x600")
+        self.update_window.configure(fg_color=COLORS["bg_main"])
+        self.update_window.attributes("-topmost", True) # Her zaman üstte kalsın
+
+        # Log Terminali
+        self.update_log_box = ctk.CTkTextbox(self.update_window, fg_color=COLORS["log_bg"], text_color="#00ff00", font=("Consolas", 11))
+        self.update_log_box.pack(fill="both", expand=True, padx=10, pady=10)
+        self.update_log_box.insert("0.0", "[*] Güncelleme işlemi başlatılıyor...\n[*] Lütfen pencereyi kapatmayın.\n\n")
+
+        # İşlemi Thread'de Başlat (GUI Donmasın diye)
+        threading.Thread(target=self.run_docker_update, daemon=True).start()
+
+    def run_docker_update(self):
+        """Docker build işlemini çalıştırır ve çıktıyı ekrana basar."""
+        from core.docker_helper import build_docker_image_stream # Import'u buraya alabiliriz veya yukarıya
+
+        try:
+            # Docker helper'daki yeni fonksiyonu çağır
+            for line in build_docker_image_stream():
+                # GUI güncellemesi (Thread güvenliği için after kullanılabilir ama Textbox genelde toleranslıdır)
+                self.update_log_box.insert("end", line)
+                self.update_log_box.see("end") # Otomatik kaydır
+            
+            self.update_log_box.insert("end", "\n\n[+] İŞLEM BAŞARIYLA TAMAMLANDI! ✅\n[+] Artık yeni araçları kullanabilirsiniz.")
+            messagebox.showinfo("Başarılı", "Docker imajı başarıyla güncellendi!")
+
+        except Exception as e:
+            self.update_log_box.insert("end", f"\n\n[-] HATA OLUŞTU: {str(e)}\n")
+            messagebox.showerror("Hata", f"Güncelleme başarısız: {e}")
+        
+        finally:
+            self.btn_update_docker.configure(state="normal", text="🛠️ Araçları Güncelle / Onar (Rebuild)")
+            
     def save_settings(self):
         self.config["api_key"] = self.set_api.get()
         self.save_config()
