@@ -1,30 +1,37 @@
-# core/web_app_module.py (YENİ - YEREL HALİ)
+# core/web_app_module.py
 
 import os
 import logging
-# Importu düzeltelim
 from core.docker_helper import run_command_in_docker
 
-# DEĞİŞİKLİK: 's3_client', 'bucket_name', 's3_prefix' parametreleri
-# 'output_dir' ile değişti.
-def run_web_tests(domain, image_name, output_dir):
+def ensure_protocol(target):
     """
-    Web uygulama test araçlarını çalıştırır ve çıktıları yerel output_dir içine kaydeder.
+    Hedefin başında http:// veya https:// yoksa http:// ekler.
+    """
+    target = target.strip()
+    if not (target.startswith("http://") or target.startswith("https://")):
+        return f"http://{target}"
+    return target
+
+def run_web_tests(domain_input, image_name, output_dir):
+    """
+    Web uygulama test araçlarını çalıştırır. URL formatını düzeltir.
     """
     logging.info("\n[+] 3. Web Uygulama Zafiyet Analizi modülü başlatılıyor...")
 
+    # Hedefi tam URL formatına getir
+    target_url = ensure_protocol(domain_input) # Örn: http://www.site.com
+
     commands = {
-        "gobuster_ciktisi.txt": f"gobuster dir -u http://{domain} -w /usr/share/wordlists/dirb/common.txt -q -fw",
-        "sqlmap_ciktisi.txt": f"sqlmap -u http://{domain} --batch --level=1 --risk=1",
-        "dalfox_ciktisi.txt": f"dalfox url http://{domain}",
-        "commix_ciktisi.txt": f"commix -u http://{domain} --batch"
+        # Artık komutların içinde manuel 'http://' yok, target_url'den geliyor.
+        "gobuster_ciktisi.txt": f"gobuster dir -u {target_url} -w /usr/share/wordlists/dirb/common.txt -q -fw",
+        "sqlmap_ciktisi.txt": f"sqlmap -u \"{target_url}\" --batch --level=1 --risk=1",
+        "dalfox_ciktisi.txt": f"dalfox url \"{target_url}\"",
+        "commix_ciktisi.txt": f"commix -u \"{target_url}\" --batch"
     }
 
     for output_filename, command in commands.items():
-        # DEĞİŞİKLİK: Tam dosya yolu oluşturuyoruz
         output_file_path = os.path.join(output_dir, output_filename)
-        
-        # docker_helper'a yerel dosya yolunu iletiyoruz
         run_command_in_docker(command, output_file_path, image_name)
 
     logging.info("\n[+] Web Uygulama Zafiyet Analizi modülü tamamlandı.")
