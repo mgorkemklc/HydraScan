@@ -34,8 +34,8 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[]):
         commands["dalfox_ciktisi.txt"] = f"dalfox url \"{target_url}\" --format plain"
 
     if "commix" in selected_tools:
-        # HATA DÜZELTİLDİ: --url parametresi açıkça belirtildi
-        commands["commix_ciktisi.txt"] = f"commix --url=\"{target_url}\" --batch"
+        # HATA DÜZELTİLDİ: Tırnak işaretleri bazen sorun yaratıyor, kaldırdık.
+        commands["commix_ciktisi.txt"] = f"commix -u {target_url} --batch"
 
     if "wapiti" in selected_tools:
         commands["wapiti_ciktisi.txt"] = f"wapiti -u {target_url} --flush-session -v 1"

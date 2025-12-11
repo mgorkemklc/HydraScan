@@ -1,0 +1,47 @@
+
+ ██╗    ██╗ █████╗ ██████╗ ██╗████████╗██╗██████╗
+ ██║    ██║██╔══██╗██╔══██╗██║╚══██╔══╝██║╚════██╗
+ ██║ █╗ ██║███████║██████╔╝██║   ██║   ██║ █████╔╝
+ ██║███╗██║██╔══██║██╔═══╝ ██║   ██║   ██║ ╚═══██╗
+ ╚███╔███╔╝██║  ██║██║     ██║   ██║   ██║██████╔╝
+  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝     ╚═╝   ╚═╝   ╚═╝╚═════╝  
+Wapiti 3.2.10 (wapiti-scanner.github.io)
+CSP attribute "default-src" is missing for URL: http://www.mgorkemkilic.com/
+CSP attribute "script-src" is missing for URL: http://www.mgorkemkilic.com/
+CSP attribute "object-src" is missing for URL: http://www.mgorkemkilic.com/
+CSP attribute "base-uri" is missing for URL: http://www.mgorkemkilic.com/
+X-Frame-Options is not set on http://www.mgorkemkilic.com/
+[*] Saving scan state, please wait...
+This scan has been saved in the file /root/.wapiti/scans/www.mgorkemkilic.com_folder_c1dd1914.db
+[*] Wapiti found 1 URLs and forms during the scan
+
+[*] Launching module xss
+[+] GET http://www.mgorkemkilic.com/ (0)
+
+[*] Launching module file
+[+] GET http://www.mgorkemkilic.com/ (0)
+
+[*] Launching module ssrf
+[+] GET http://www.mgorkemkilic.com/ (0)
+[*] Asking endpoint URL https://wapiti3.ovh/get_ssrf.php?session_id=98biuw for results, please wait...
+
+[*] Launching module upload
+
+[*] Launching module redirect
+[+] GET http://www.mgorkemkilic.com/ (0)
+
+[*] Launching module ssl
+sslscan is not installed or not found in PATH, module will be skipped
+
+[*] Launching module sql
+[+] GET http://www.mgorkemkilic.com/ (0)
+
+[*] Launching module exec
+[+] GET http://www.mgorkemkilic.com/ (0)
+
+[*] Launching module permanentxss
+
+[*] Generating report...
+A report has been generated in the file /root/.wapiti/generated_report
+Open /root/.wapiti/generated_report/www.mgorkemkilic.com_12112025_1152.html with a browser to see this report.
+

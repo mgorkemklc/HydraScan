@@ -1,0 +1,7 @@
+--- HATA OLUŞTU ---
+Komut: gobuster dir -u http://www.mgorkemkilic.com -w /usr/share/wordlists/dirb/common.txt -q
+Hata Kodu: 1
+Çıktı:
+
+Hata Çıktısı:
+2025/12/11 11:51:09 the server returns a status code that matches the provided options for non existing urls. http://www.mgorkemkilic.com/c285fd74-f527-4872-b3db-77eb1c444468 => 301 (redirect to https://www.mgorkemkilic.com/c285fd74-f527-4872-b3db-77eb1c444468) (Length: 166). Please exclude the response length or the status code or set the wildcard option.. To continue please exclude the status code or the length

@@ -1,34 +1,31 @@
-# core/docker_helper.py (YENİ - YEREL DİSKE YAZAN HALİ)
-
 import subprocess
 import os
 import logging
 
-def run_command_in_docker(command, output_file_path, image_name, extra_docker_args=None):
+def run_command_in_docker(command, output_file_path, image_name="pentest-araci-kali:v1.5", extra_docker_args=None):
     """
-    Verilen komutu Docker içinde çalıştırır.
-    Çıktıyı (stdout/stderr) alır ve doğrudan yerel bir dosyaya yazar.
-    
-    output_file_path: Çıktının kaydedileceği tam dosya yolu 
-                      (örn: C:\\...\\scan_outputs\\scan_1\\nmap_ciktisi.txt)
+    Verilen komutu Docker içinde çalıştırır ve çıktıyı yerel dosyaya yazar.
+    DNS sorunlarını çözmek için 8.8.8.8 eklenmiştir.
     """
     
-    # DİKKAT: Bu fonksiyonun çalışması için bu Python kodunu çalıştıran
-    # makinede Docker'ın kurulu ve çalışıyor olması gerekir.
-    
-    base_docker_command = [
-        "docker", "run", "--rm", "--network=host",
-    ]
-    
-    # Docker komutuna mount edilmesi gereken yerel klasörler varsa ekle
-    # (örn: /output klasörünü bağlamak)
+    # 1. Çıktı klasörünü hazırla
     output_dir = os.path.dirname(output_file_path)
     if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        
-    # ÖNEMLİ: Docker'ın çıktı yazabilmesi için yerel klasörü mount etmeliyiz.
-    # Container içindeki /output yolunu, yerel makinedeki output_dir'e bağlıyoruz.
-    base_docker_command.extend(["-v", f"{os.path.abspath(output_dir)}:/output"])
+        try:
+            os.makedirs(output_dir)
+        except OSError as e:
+            logging.error(f"[-] Klasör oluşturulamadı: {e}")
+            return
+
+    # 2. Docker Komutunu Oluştur
+    # --network=host: Ana makine ağını kullan (Hız ve erişim için)
+    # --dns=8.8.8.8: Google DNS kullan (Dig/Whois timeout çözümü)
+    base_docker_command = [
+        "docker", "run", "--rm", 
+        "--network=host",
+        "--dns=8.8.8.8", 
+        "-v", f"{os.path.abspath(output_dir)}:/app/output" # Volume mount (Opsiyonel ama güvenli)
+    ]
 
     if extra_docker_args and isinstance(extra_docker_args, list):
         base_docker_command.extend(extra_docker_args)
@@ -37,69 +34,47 @@ def run_command_in_docker(command, output_file_path, image_name, extra_docker_ar
         image_name, "/bin/bash", "-c", command
     ]
     
-    logging.info(f"\n[+] Komut çalıştırılıyor: '{command.split()[0]}'")
+    logging.info(f"[+] Docker komutu: {' '.join(full_docker_command)}")
+    
     full_output = ""
     
     try:
-        # Komutu çalıştır
+        # 3. Komutu Çalıştır
         process = subprocess.run(
             full_docker_command, 
             check=True, 
             capture_output=True, 
             text=True,
             encoding='utf-8',
-            errors='ignore'
+            errors='replace' # Türkçe karakter hatasını önle
         )
         full_output = process.stdout + "\n" + process.stderr
         
     except subprocess.CalledProcessError as e:
-        error_message = f"--- HATA OLUŞTU ---\nKomut çalıştırılamadı: {full_docker_command}\nHata: {e}"
-        full_output = error_message + "\n" + e.stdout + "\n" + e.stderr
-        logging.error(f"[-] Komut çalıştırılırken bir hata oluştu: {e}")
+        error_msg = f"--- HATA OLUŞTU ---\nKomut: {command}\nHata Kodu: {e.returncode}\nÇıktı:\n{e.stdout}\nHata Çıktısı:\n{e.stderr}"
+        full_output = error_msg
+        logging.error(f"[-] Komut hatası: {e}")
     
-    except FileNotFoundError as e:
-        error_message = f"--- KRİTİK HATA: DOCKER BULUNAMADI ---\n{e}\n" \
-                        "Bu komutu çalıştıran makinede Docker'ın kurulu ve çalışır olduğundan emin olun."
-        full_output = error_message
-        logging.error(error_message)
+    except FileNotFoundError:
+        full_output = "--- KRİTİK: DOCKER BULUNAMADI ---\nLütfen Docker Desktop uygulamasının açık olduğundan emin olun."
+        logging.error("[-] Docker bulunamadı.")
 
-    finally:
-        # Çıktıyı S3 yerine YEREL DOSYAYA yaz
-        try:
-            # DİKKAT: Eğer komut (örn: apktool) çıktısını dosyaya kendi yazıyorsa
-            # bu bloğa gerek kalmayabilir, ancak nmap, whois gibi stdout
-            # üreten araçlar için bu blok şarttır.
-            
-            # Eğer komut çıktısını /output/dosya_adi olarak kendi yazıyorsa
-            # bu bloğu atlayabiliriz, ancak biz genelde stdout'u yakalıyoruz.
-            # Güvenli olması için biz yine de yakalanan stdout'u dosyaya yazalım.
-            
-            # Eğer komut /output/dosya_adi'na yazıyorsa (örn: airodump),
-            # bu komutun stdout'u boş olabilir, bu durumda bu dosya da boş olur.
-            # Bu yüzden komutları /output/dosya_adi'na yönlendirmek daha iyi.
-            
-            # -------- YENİ YAKLAŞIM (Daha Basit) --------
-            # `docker_helper` çıktıyı dosyaya yazmasın.
-            # Komutun kendisi çıktıyı > /output/dosya_adi.txt olarak yazsın.
-            # Bu `docker_helper` sadece komutu çalıştırsın ve hata loglasın.
-            
-            # Geri alıyorum, eski yöntem (stdout'u yakalayıp dosyaya yazmak) 
-            # daha stabil, ona dönelim.
-            
-            with open(output_file_path, 'w', encoding='utf-8') as f:
-                f.write(full_output)
-            
-            logging.info(f"[+] Çıktı yerel diske yazıldı: {output_file_path}")
-            
-        except Exception as e:
-            logging.error(f"[-] Yerel çıktı dosyası yazılırken hata ({output_file_path}): {e}")
+    except Exception as e:
+        full_output = f"--- BEKLENMEYEN HATA ---\n{str(e)}"
+        logging.error(f"[-] Beklenmeyen hata: {e}")
 
-import subprocess
+    # 4. Çıktıyı Dosyaya Yaz
+    try:
+        with open(output_file_path, 'w', encoding='utf-8') as f:
+            f.write(full_output)
+        logging.info(f"[+] Çıktı kaydedildi: {output_file_path}")
+    except Exception as e:
+        logging.error(f"[-] Dosya yazma hatası ({output_file_path}): {e}")
 
 def build_docker_image_stream(dockerfile="Dockerfile.pentest", tag="pentest-araci-kali:v1.5"):
     """
-    Docker imajını yeniden inşa eder.
-    --network=host parametresi DNS sorunlarını çözer.
+    Docker imajını yeniden inşa eder ve logları canlı (stream) olarak döner.
+    DNS ve Ağ ayarları eklenmiştir.
     """
     cmd = ["docker", "build", "--network=host", "-t", tag, "-f", dockerfile, "."]
     
@@ -119,4 +94,4 @@ def build_docker_image_stream(dockerfile="Dockerfile.pentest", tag="pentest-arac
     process.wait()
     
     if process.returncode != 0:
-        raise Exception(f"Docker oluşturma işlemi başarısız oldu. Hata kodu: {process.returncode}")
+        raise Exception(f"Docker build başarısız. Hata kodu: {process.returncode}")
