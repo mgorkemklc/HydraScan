@@ -1,3 +1,4 @@
+www.mgorkemkilic.com
 
 
                __    _____           __         
@@ -10,5 +11,5 @@
 
 [[34mINF[0m] Current subfinder version v2.6.0 ([91moutdated[0m)
 [[34mINF[0m] Loading provider config from the default location: /root/.config/subfinder/provider-config.yaml
-[[34mINF[0m] Enumerating subdomains for www.mgorkemkilic.com
-[[34mINF[0m] Found 0 subdomains for www.mgorkemkilic.com in 6 seconds 839 milliseconds
+[[34mINF[0m] Enumerating subdomains for mgorkemkilic.com
+[[34mINF[0m] Found 1 subdomains for mgorkemkilic.com in 1 second 17 milliseconds
