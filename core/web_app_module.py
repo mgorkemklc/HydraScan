@@ -18,35 +18,30 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[]):
     commands = {}
 
     if "gobuster" in selected_tools:
-        # Yaygın wordlist ile tarama
+        # HATA DÜZELTİLDİ: -fw parametresi kaldırıldı, genel wordlist kullanıldı
         commands["gobuster_ciktisi.txt"] = f"gobuster dir -u {target_url} -w /usr/share/wordlists/dirb/common.txt -q"
 
     if "nikto" in selected_tools:
-        # Tuning opsiyonunu kaldırdık (bazen takılabiliyor), varsayılan tarama
         commands["nikto_ciktisi.txt"] = f"nikto -h {target_url}"
 
     if "nuclei" in selected_tools:
-        # Kritik ve Yüksek seviyeli açıkları tara
         commands["nuclei_ciktisi.txt"] = f"nuclei -u {target_url} -severity critical,high"
 
     if "sqlmap" in selected_tools:
-        # Batch modu (kullanıcıya sormadan devam et)
-        commands["sqlmap_ciktisi.txt"] = f"sqlmap -u \"{target_url}\" --batch --random-agent --level=1 --risk=1"
+        commands["sqlmap_ciktisi.txt"] = f"sqlmap -u \"{target_url}\" --batch --random-agent --level=1"
 
     if "dalfox" in selected_tools:
         commands["dalfox_ciktisi.txt"] = f"dalfox url \"{target_url}\" --format plain"
 
     if "commix" in selected_tools:
-        # DÜZELTME: --url parametresi açıkça belirtildi ve batch eklendi
+        # HATA DÜZELTİLDİ: --url parametresi açıkça belirtildi
         commands["commix_ciktisi.txt"] = f"commix --url=\"{target_url}\" --batch"
 
     if "wapiti" in selected_tools:
         commands["wapiti_ciktisi.txt"] = f"wapiti -u {target_url} --flush-session -v 1"
     
     if "hydra" in selected_tools:
-        # Hydra için domaini ayıkla
         domain_only = target_url.split("//")[-1].split("/")[0]
-        # Örnek SSH taraması (Dikkatli kullanım için)
         commands["hydra_ciktisi.txt"] = f"hydra -l admin -P /usr/share/wordlists/rockyou.txt ssh://{domain_only} -t 4 -I -f"
 
     for output_filename, command in commands.items():
