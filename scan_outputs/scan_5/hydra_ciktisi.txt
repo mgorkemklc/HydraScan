@@ -1,0 +1,8 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_5:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'hydra -l admin -P /usr/share/wordlists/rockyou.txt ssh://www.mgorkemkilic.com -t 4 -f -I']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_5:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'hydra -l admin -P /usr/share/wordlists/rockyou.txt ssh://www.mgorkemkilic.com -t 4 -f -I']' returned non-zero exit status 255.
+Hydra v9.6 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2025-12-11 09:08:22
+
+[ERROR] File for passwords not found: /usr/share/wordlists/rockyou.txt

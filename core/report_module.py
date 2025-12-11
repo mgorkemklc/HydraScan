@@ -1,6 +1,6 @@
 import os
 import json
-import time  # <-- ÖNEMLİ
+import time
 import google.generativeai as genai
 import logging
 from tqdm import tqdm
@@ -11,20 +11,24 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
         model = genai.GenerativeModel('gemini-2.5-pro')
         
         prompt = f"""
-        Sen bir siber güvenlik uzmanısın. Aşağıda '{tool_name}' aracının çıktısı var.
-        Bu çıktıyı analiz et ve yanıtını SADECE aşağıdaki JSON formatında ver. 
-        Markdown veya başka bir metin ekleme. Sadece saf JSON döndür.
-
+        Sen kıdemli bir siber güvenlik uzmanısın. Aşağıda '{tool_name}' aracının çıktısı var.
+        Bu çıktıyı analiz et ve yanıtını SADECE aşağıdaki JSON formatında ver.
+        
+        ÖNEMLİ KURAL: 
+        Eğer çıktı içinde "command not found", "error", "stdin", "failed", "no such file" gibi ifadeler varsa veya araç hiç çalışmamışsa,
+        "risk_seviyesi" alanını mutlaka "ARAÇ HATASI" olarak doldur ve özette sorunu belirt.
+        
+        JSON Formatı:
         {{
             "arac_adi": "{tool_name}",
-            "ozet": "Aracın ne bulduğuna dair 1-2 cümlelik kısa özet",
-            "risk_seviyesi": "Kritik | Yüksek | Orta | Düşük | Bilgilendirici",
+            "ozet": "Aracın durumu ve ne bulduğuna dair 1-2 cümlelik özet. Hata varsa burada belirt.",
+            "risk_seviyesi": "Kritik | Yüksek | Orta | Düşük | Bilgilendirici | ARAÇ HATASI",
             "bulgular": [ "Bulgu 1", "Bulgu 2" ],
             "oneriler": [ "Öneri 1", "Öneri 2" ]
         }}
 
         --- HAM ÇIKTI ---
-        {file_content}
+        {file_content[:15000]}  # Çok uzun çıktıları kırp
         --- HAM ÇIKTI SONU ---
         """
 
@@ -37,9 +41,9 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
         return json.dumps({
             "arac_adi": tool_name,
             "ozet": f"Analiz sırasında hata oluştu: {str(e)[:100]}...",
-            "risk_seviyesi": "Hata",
-            "bulgular": [],
-            "oneriler": []
+            "risk_seviyesi": "ARAÇ HATASI",
+            "bulgular": ["AI servisine erişilemedi."],
+            "oneriler": ["API anahtarını kontrol edin."]
         })
 
 def generate_report(output_dir, domain, api_key):
@@ -55,15 +59,22 @@ def generate_report(output_dir, domain, api_key):
         file_path = os.path.join(output_dir, filename)
         
         try:
-            # --- API KOTASI İÇİN BEKLEME ---
-            logging.info(f"[*] {tool_name} analiz ediliyor... (Kota için 5sn bekleniyor)")
-            time.sleep(5) 
-            # -------------------------------
+            # API Kotası için bekleme
+            time.sleep(20) 
 
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
-            if not content.strip(): continue
+            if not content.strip():
+                # Boş dosya varsa hata olarak ekle
+                full_report_data["analizler"].append({
+                    "arac_adi": tool_name,
+                    "ozet": "Araç çıktısı boş. Çalıştırılamamış olabilir.",
+                    "risk_seviyesi": "ARAÇ HATASI",
+                    "bulgular": ["Çıktı dosyası boş."],
+                    "oneriler": ["Aracın kurulumunu kontrol edin."]
+                })
+                continue
             
             json_response_str = analyze_output_with_gemini(api_key, tool_name, content)
             

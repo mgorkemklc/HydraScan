@@ -1,0 +1,16 @@
+
+; <<>> DiG 9.20.15-2-Debian <<>> www.mgorkemkilic.com ANY
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 159
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;www.mgorkemkilic.com.		IN	ANY
+
+;; Query time: 0 msec
+;; SERVER: 192.168.65.7#53(192.168.65.7) (TCP)
+;; WHEN: Thu Dec 11 09:07:40 UTC 2025
+;; MSG SIZE  rcvd: 38
+
+

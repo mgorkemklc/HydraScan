@@ -1,0 +1,5 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_5:/output', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\100day100app\\app\\release\\release\\release:/app', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'apktool d /app/app-release.aab -o /output/apktool_decompiled -f']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_5:/output', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\100day100app\\app\\release\\release\\release:/app', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'apktool d /app/app-release.aab -o /output/apktool_decompiled -f']' returned non-zero exit status 127.
+
+/bin/bash: line 1: apktool: command not found
