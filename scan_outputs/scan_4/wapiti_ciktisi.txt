@@ -1,0 +1,14 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_4:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'wapiti -u http://www.mgorkemkilic.com --flush-session -v 1']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_4:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'wapiti -u http://www.mgorkemkilic.com --flush-session -v 1']' returned non-zero exit status 1.
+
+Traceback (most recent call last):
+  File "/usr/bin/wapiti", line 5, in <module>
+    from wapitiCore.main.wapiti import wapiti_asyncio_wrapper
+  File "/usr/lib/python3/dist-packages/wapitiCore/main/wapiti.py", line 37, in <module>
+    from wapitiCore.controller.wapiti import Wapiti
+  File "/usr/lib/python3/dist-packages/wapitiCore/controller/wapiti.py", line 41, in <module>
+    from wapitiCore.net.intercepting_explorer import InterceptingExplorer
+  File "/usr/lib/python3/dist-packages/wapitiCore/net/intercepting_explorer.py", line 40, in <module>
+    import structlog
+ModuleNotFoundError: No module named 'structlog'

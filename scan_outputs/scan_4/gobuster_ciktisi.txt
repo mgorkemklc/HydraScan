@@ -1,0 +1,5 @@
+--- HATA OLUŞTU ---
+Komut çalıştırılamadı: ['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_4:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'gobuster dir -u http://www.mgorkemkilic.com -w /usr/share/wordlists/dirb/common.txt -q']
+Hata: Command '['docker', 'run', '--rm', '--network=host', '-v', 'C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\scan_outputs\\scan_4:/output', 'pentest-araci-kali:v1.5', '/bin/bash', '-c', 'gobuster dir -u http://www.mgorkemkilic.com -w /usr/share/wordlists/dirb/common.txt -q']' returned non-zero exit status 1.
+
+2025/12/11 08:48:21 wordlist file "/usr/share/wordlists/dirb/common.txt" does not exist: stat /usr/share/wordlists/dirb/common.txt: no such file or directory
