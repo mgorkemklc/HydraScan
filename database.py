@@ -1,5 +1,3 @@
-# database.py
-
 import sqlite3
 import os
 import datetime
@@ -41,7 +39,6 @@ def init_db():
     );
     """)
     
-    # Varsayılan admin (İstersen bunu production'da kaldırabilirsin ama test için kalsın)
     try:
         admin_pass = hashlib.sha256("admin123".encode()).hexdigest()
         cursor.execute("INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)", 
@@ -77,7 +74,6 @@ def register_user(username, password):
         conn.close()
 
 def user_exists(username):
-    """Kullanıcı adının dolu olup olmadığını kontrol eder."""
     conn = get_db_connection()
     exists = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone()
     conn.close()
@@ -107,16 +103,39 @@ def create_scan(scan_data, user_id=None):
     conn.close()
     return new_id
 
-# Manuel import için (Sync fonksiyonu kullanacak)
+# --- KRİTİK GÜNCELLEME BURADA ---
 def insert_imported_scan(user_id, domain, status, output_dir, report_path, created_at):
+    """
+    Dosya sisteminden bulunan taramaları veritabanına ekler veya günceller.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Mükerrer kayıt kontrolü (Aynı klasör yolu var mı?)
-    check = cursor.execute("SELECT id FROM scans WHERE output_directory = ?", (output_dir,)).fetchone()
+    # 1. Bu klasör yoluyla kayıtlı bir tarama var mı kontrol et
+    check = cursor.execute("SELECT id, status FROM scans WHERE output_directory = ?", (output_dir,)).fetchone()
+    
     if check:
-        return check['id'] # Zaten varsa ID dön
+        # Kayıt VARSA
+        scan_id = check['id']
+        current_status = check['status']
+        
+        # Eğer veritabanında 'RUNNING' veya 'REPORTING' olarak kaldıysa, 
+        # ama biz elimizde bitmiş bir rapor dosyası (report_path) tutuyorsak:
+        # Durumu 'COMPLETED' olarak GÜNCELLE.
+        if current_status != "COMPLETED" and report_path and os.path.exists(report_path):
+            now = datetime.datetime.now()
+            cursor.execute("""
+                UPDATE scans 
+                SET status = 'COMPLETED', report_file_path = ?, completed_at = ? 
+                WHERE id = ?
+            """, (report_path, now, scan_id))
+            conn.commit()
+            print(f"[Database] Scan {scan_id} durumu 'COMPLETED' olarak güncellendi (Dosya bulundu).")
+            
+        conn.close()
+        return scan_id
 
+    # Kayıt YOKSA (Yeni ekle)
     cursor.execute("""
     INSERT INTO scans (
         user_id, target_full_domain, status, output_directory, report_file_path, created_at, completed_at
