@@ -19,7 +19,7 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[]):
 
     if "gobuster" in selected_tools:
         # HATA DÜZELTİLDİ: -fw parametresi kaldırıldı, genel wordlist kullanıldı
-        commands["gobuster_ciktisi.txt"] = f"gobuster dir -u {target_url} -w /usr/share/wordlists/dirb/common.txt -q"
+        commands["gobuster_ciktisi.txt"] = f"gobuster dir -u {target_url} -w /usr/share/wordlists/dirb/common.txt -q -b 301,302 --wildcard"
 
     if "nikto" in selected_tools:
         commands["nikto_ciktisi.txt"] = f"nikto -h {target_url}"
@@ -35,7 +35,7 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[]):
 
     if "commix" in selected_tools:
         # HATA DÜZELTİLDİ: Tırnak işaretleri bazen sorun yaratıyor, kaldırdık.
-        commands["commix_ciktisi.txt"] = f"commix -u {target_url} --batch"
+        commands["commix_ciktisi.txt"] = f"commix -u {target_url} --crawl=2 --batch"
 
     if "wapiti" in selected_tools:
         commands["wapiti_ciktisi.txt"] = f"wapiti -u {target_url} --flush-session -v 1"

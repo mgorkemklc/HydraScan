@@ -1,0 +1,21 @@
+
+; <<>> DiG 9.20.15-2-Debian <<>> www.mgorkemkilic.com ANY
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 30556
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 512
+;; QUESTION SECTION:
+;www.mgorkemkilic.com.		IN	ANY
+
+;; ANSWER SECTION:
+www.mgorkemkilic.com.	3789	IN	HINFO	"RFC8482" ""
+
+;; Query time: 63 msec
+;; SERVER: 8.8.8.8#53(8.8.8.8) (TCP)
+;; WHEN: Mon Dec 15 14:59:07 UTC 2025
+;; MSG SIZE  rcvd: 70
+
+
