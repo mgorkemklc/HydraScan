@@ -33,8 +33,8 @@ def run_reconnaissance(domain_input, output_dir, image_name, selected_tools=[]):
         commands["subfinder_ciktisi.txt"] = f"subfinder -d {root_domain}"
     
     if "amass" in selected_tools:
-        # Amass pasif mod
-        commands["amass_ciktisi.txt"] = f"amass enum -passive -d {root_domain}"
+        # -timeout 10: Araca 10 dakika süre tanı (Dakika cinsinden)
+        commands["amass_ciktisi.txt"] = f"amass enum -passive -d {root_domain} -timeout 10"
 
     if "dig" in selected_tools:
         commands["dig_ciktisi.txt"] = f"dig {clean_domain} ANY"
