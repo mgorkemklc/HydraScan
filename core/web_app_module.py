@@ -1,5 +1,3 @@
-# core/web_app_module.py
-
 import os
 import logging
 from core.docker_helper import run_command_in_docker
@@ -10,16 +8,31 @@ def ensure_http(target):
         return f"http://{target}"
     return target
 
-def run_web_tests(domain_input, output_dir, image_name, selected_tools=[]):
-    logging.info("\n[+] 3. Web Zafiyet Modülü Başlatılıyor...")
+# Parametrelere stream_callback ve custom_wordlist eklendi
+def run_web_tests(domain_input, output_dir, image_name, selected_tools=[], stream_callback=None, custom_wordlist=None):
+    logging.info("\n[+] Web Zafiyet Modülü Başlatılıyor...")
+    if stream_callback: stream_callback("\n=== [3. WEB ZAFİYET MODÜLÜ] ===\n")
 
     target_url = ensure_http(domain_input)
+    
+    # Wordlist Ayarı
+    wordlist_path_in_docker = "/usr/share/wordlists/dirb/common.txt" # Varsayılan
+    extra_docker_args = []
+    
+    # Eğer özel wordlist seçildiyse
+    if custom_wordlist and os.path.exists(custom_wordlist):
+        wl_dir = os.path.dirname(custom_wordlist)
+        wl_filename = os.path.basename(custom_wordlist)
+        # Klasörü /wordlists olarak bağla
+        extra_docker_args = ['-v', f'{os.path.abspath(wl_dir)}:/wordlists']
+        wordlist_path_in_docker = f"/wordlists/{wl_filename}"
+        if stream_callback: stream_callback(f"[i] Özel Wordlist Kullanılıyor: {wl_filename}\n")
 
     commands = {}
 
     if "gobuster" in selected_tools:
-        # HATA DÜZELTİLDİ: -fw parametresi kaldırıldı, genel wordlist kullanıldı
-        commands["gobuster_ciktisi.txt"] = f"gobuster dir -u {target_url} -w /usr/share/wordlists/dirb/common.txt -q -b 301,302 --wildcard"
+        # Dinamik wordlist yolu
+        commands["gobuster_ciktisi.txt"] = f"gobuster dir -u {target_url} -w {wordlist_path_in_docker} -q -b 301,302 --wildcard"
 
     if "nikto" in selected_tools:
         commands["nikto_ciktisi.txt"] = f"nikto -h {target_url}"
@@ -34,7 +47,6 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[]):
         commands["dalfox_ciktisi.txt"] = f"dalfox url \"{target_url}\" --format plain"
 
     if "commix" in selected_tools:
-        # HATA DÜZELTİLDİ: Tırnak işaretleri bazen sorun yaratıyor, kaldırdık.
         commands["commix_ciktisi.txt"] = f"commix -u {target_url} --crawl=2 --batch"
 
     if "wapiti" in selected_tools:
@@ -45,8 +57,8 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[]):
         commands["hydra_ciktisi.txt"] = f"hydra -l admin -P /usr/share/wordlists/rockyou.txt ssh://{domain_only} -t 4 -I -f"
 
     for output_filename, command in commands.items():
-        logging.info(f"[*] Çalıştırılıyor: {command.split()[0]}")
         output_file_path = os.path.join(output_dir, output_filename)
-        run_command_in_docker(command, output_file_path, image_name)
+        # stream_callback ve extra_docker_args'ı iletiyoruz
+        run_command_in_docker(command, output_file_path, image_name, extra_docker_args=extra_docker_args, stream_callback=stream_callback)
 
-    logging.info("\n[+] Web Zafiyet modülü tamamlandı.")
+    if stream_callback: stream_callback("\n[+] Web Modülü Tamamlandı.\n")

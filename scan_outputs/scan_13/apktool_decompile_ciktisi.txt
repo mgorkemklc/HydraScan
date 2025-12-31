@@ -1,0 +1,14 @@
+I: Using Apktool 2.7.0-dirty on app-release.aab
+I: Copying assets and libs...
+I: Copying unknown files...
+I: Copying original files...
+Exception in thread "main" java.lang.NoSuchMethodError: org.yaml.snakeyaml.representer.Representer: method 'void <init>()' not found
+	at brut.androlib.meta.EscapedStringRepresenter.<init>(EscapedStringRepresenter.java:23)
+	at brut.androlib.meta.MetaInfo.getYaml(MetaInfo.java:46)
+	at brut.androlib.meta.MetaInfo.save(MetaInfo.java:56)
+	at brut.androlib.meta.MetaInfo.save(MetaInfo.java:65)
+	at brut.androlib.Androlib.writeMetaFile(Androlib.java:269)
+	at brut.androlib.ApkDecoder.writeMetaFile(ApkDecoder.java:343)
+	at brut.androlib.ApkDecoder.decode(ApkDecoder.java:171)
+	at brut.apktool.Main.cmdDecode(Main.java:175)
+	at brut.apktool.Main.main(Main.java:79)

@@ -8,6 +8,8 @@ import concurrent.futures
 import logging
 import glob
 import subprocess
+import queue  # EKLENDİ: Canlı log için
+import requests # EKLENDİ: Bildirim için
 from pathlib import Path
 
 # --- MODÜLLER ---
@@ -30,7 +32,8 @@ COLORS = {
     "accent": "#38bdf8", "accent_hover": "#0ea5e9",
     "text_white": "#f1f5f9", "text_gray": "#94a3b8",
     "danger": "#ef4444", "success": "#22c55e", "warning": "#f59e0b",
-    "running": "#3b82f6", "border": "#334155", "log_bg": "#0d1117"
+    "running": "#3b82f6", "border": "#334155", "log_bg": "#0d1117",
+    "terminal_fg": "#00ff00" # EKLENDİ
 }
 
 ctk.set_appearance_mode("Dark")
@@ -84,13 +87,19 @@ class HydraScanApp(ctk.CTk):
         
         database.init_db()
         self.load_config()
-        self.current_user = None 
+        self.apply_theme() # EKLENDİ: Tema ayarını uygula
+        self.current_user = None
+        
+        self.log_queue = queue.Queue() # EKLENDİ: Log kuyruğu
+        
         self.container = ctk.CTkFrame(self, fg_color="transparent")
         self.container.pack(fill="both", expand=True)
         self.show_login_screen()
 
+        self.check_log_queue() # EKLENDİ: Logları dinle
+
     def load_config(self):
-        self.config = {"api_key": "", "theme": "Dark"}
+        self.config = {"api_key": "", "theme": "Dark", "webhook_url": ""} # EKLENDİ: Webhook
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, 'r') as f:
@@ -100,8 +109,24 @@ class HydraScanApp(ctk.CTk):
     def save_config(self):
         with open(CONFIG_FILE, 'w') as f: json.dump(self.config, f)
 
+    def apply_theme(self): # EKLENDİ
+        ctk.set_appearance_mode(self.config.get("theme", "Dark"))
+
+    def check_log_queue(self): # EKLENDİ: Terminal güncelleme
+        try:
+            while True:
+                msg = self.log_queue.get_nowait()
+                if hasattr(self, 'terminal_box'):
+                    self.terminal_box.configure(state="normal")
+                    self.terminal_box.insert("end", msg)
+                    self.terminal_box.see("end")
+                    self.terminal_box.configure(state="disabled")
+        except queue.Empty:
+            pass
+        self.after(100, self.check_log_queue)
+
     # ==================================================================
-    # LOGIN & REGISTER
+    # LOGIN & REGISTER (AYNEN KORUNDU)
     # ==================================================================
     def show_login_screen(self):
         for w in self.container.winfo_children(): w.destroy()
@@ -157,7 +182,7 @@ class HydraScanApp(ctk.CTk):
             self.show_login_screen()
 
     # ==================================================================
-    # SYNC
+    # SYNC (AYNEN KORUNDU)
     # ==================================================================
     def sync_filesystem_to_db(self):
         if not os.path.exists("scan_outputs"): return
@@ -257,7 +282,7 @@ class HydraScanApp(ctk.CTk):
             b.configure(fg_color=COLORS["bg_main"] if n == name else "transparent", text_color=COLORS["accent"] if n == name else COLORS["text_gray"])
 
     # ==================================================================
-    # DASHBOARD
+    # DASHBOARD (GÜNCELLENDİ: CANLI TERMİNAL EKLENDİ)
     # ==================================================================
     def create_dashboard_view(self):
         view = ctk.CTkFrame(self.main_area, fg_color="transparent")
@@ -270,6 +295,20 @@ class HydraScanApp(ctk.CTk):
         self.card_active.pack(side="left", fill="x", expand=True, padx=10)
         self.card_risk = MetricCard(cards, "Başarısız/Risk", "0", "İncelenmeli", "🐞", COLORS["danger"])
         self.card_risk.pack(side="left", fill="x", expand=True, padx=(10, 0))
+        
+        # CANLI TERMİNAL PENCERESİ EKLENDİ
+        term_frame = ctk.CTkFrame(view, fg_color=COLORS["bg_panel"], corner_radius=10)
+        term_frame.pack(fill="x", padx=0, pady=(0, 20))
+        
+        term_head = ctk.CTkFrame(term_frame, fg_color="transparent")
+        term_head.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(term_head, text=">_ CANLI TERMINAL", font=("Consolas", 12, "bold"), text_color=COLORS["success"]).pack(side="left")
+        ctk.CTkButton(term_head, text="Temizle", width=60, height=20, command=lambda: self.terminal_box.delete("0.0", "end")).pack(side="right")
+        
+        self.terminal_box = ctk.CTkTextbox(term_frame, height=150, fg_color=COLORS["log_bg"], text_color=COLORS["terminal_fg"], font=("Consolas", 11))
+        self.terminal_box.pack(fill="x", padx=5, pady=5)
+        self.terminal_box.insert("0.0", "[*] Sistem hazır. Tarama bekleniyor...\n")
+        
         cont = ctk.CTkFrame(view, fg_color=COLORS["bg_panel"], corner_radius=12, border_width=1, border_color=COLORS["border"])
         cont.pack(fill="both", expand=True)
         self.tree = self.create_treeview(cont)
@@ -286,7 +325,7 @@ class HydraScanApp(ctk.CTk):
         for s in scans[:10]: self.insert_scan_to_tree(self.tree, s)
 
     # ==================================================================
-    # YENİ TARAMA (MODÜLER SEÇİM + APK GERİ GETİRİLDİ)
+    # YENİ TARAMA (ORİJİNAL HALİ + WORDLIST SEÇİCİ EKLENDİ)
     # ==================================================================
     def create_new_scan_view(self):
         view = ctk.CTkFrame(self.main_area, fg_color="transparent")
@@ -305,7 +344,16 @@ class HydraScanApp(ctk.CTk):
         self.entry_key.pack(fill="x", padx=20, pady=(0, 20))
         if self.config.get("api_key"): self.entry_key.insert(0, self.config["api_key"])
 
-        # 2. Modüler Araç Seçimi (GERİ GETİRİLDİ)
+        # EKLENDİ: ÖZEL WORDLIST SEÇİMİ
+        wl_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        wl_frame.pack(fill="x", padx=20, pady=(0, 20))
+        ctk.CTkLabel(wl_frame, text="Özel Wordlist (Gobuster):", text_color="gray").pack(side="left")
+        self.lbl_wordlist_path = ctk.CTkLabel(wl_frame, text="Varsayılan", text_color="white", font=("Roboto", 12, "italic"))
+        self.lbl_wordlist_path.pack(side="left", padx=10)
+        ctk.CTkButton(wl_frame, text="Dosya Seç", width=80, height=25, command=self.select_wordlist).pack(side="right")
+        self.selected_wordlist_path = None
+
+        # 2. Modüler Araç Seçimi (13 TOOL KORUNDU)
         tools_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
         tools_frame.pack(fill="x", pady=10)
         ctk.CTkLabel(tools_frame, text="Araç Seçimi", font=("Roboto", 14, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=20, pady=(10, 5))
@@ -329,7 +377,7 @@ class HydraScanApp(ctk.CTk):
             c += 1
             if c > 3: c=0; r+=1
 
-        # 3. Mobil Analiz (GERİ GETİRİLDİ)
+        # 3. Mobil Analiz (AYNEN KORUNDU)
         mobile_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=10, border_color=COLORS["warning"], border_width=1)
         mobile_frame.pack(fill="x", pady=10)
         cb_mobile = ctk.CTkCheckBox(mobile_frame, text="Mobil Analiz (APK/AAB/XAPK)", variable=self.tools_vars["mobile"], text_color=COLORS["warning"], fg_color=COLORS["warning"], command=self.toggle_apk_input)
@@ -348,6 +396,12 @@ class HydraScanApp(ctk.CTk):
         self.btn_launch = ctk.CTkButton(scroll, text="TARAMAYI BAŞLAT 🚀", height=50, font=("Roboto", 16, "bold"), fg_color=COLORS["success"], hover_color="#16a34a", command=self.start_scan)
         self.btn_launch.pack(fill="x", pady=20)
 
+    def select_wordlist(self): # EKLENDİ
+        path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
+        if path:
+            self.selected_wordlist_path = path
+            self.lbl_wordlist_path.configure(text=os.path.basename(path), text_color="white")
+
     def toggle_apk_input(self):
         if self.tools_vars["mobile"].get(): self.apk_input_frame.pack(fill="x", padx=40, pady=(0, 20))
         else: self.apk_input_frame.pack_forget()
@@ -358,7 +412,7 @@ class HydraScanApp(ctk.CTk):
             self.selected_apk_path = path
             self.lbl_apk_path.configure(text=os.path.basename(path), text_color="white")
 
-    # --- TARAMA MANTIĞI ---
+    # --- TARAMA MANTIĞI (GÜNCELLENDİ: LOG CALLBACK VE WORDLIST İLE) ---
     def start_scan(self):
         domain = self.entry_domain.get()
         key = self.entry_key.get()
@@ -367,6 +421,12 @@ class HydraScanApp(ctk.CTk):
         if not domain or not key: return messagebox.showwarning("Eksik", "Domain ve API Key girin.")
         if "mobile" in selected_tools and not self.selected_apk_path: return messagebox.showwarning("Eksik", "APK dosyası seçilmedi.")
 
+        # Terminali Temizle
+        self.terminal_box.configure(state="normal")
+        self.terminal_box.delete("0.0", "end")
+        self.terminal_box.configure(state="disabled")
+        self.show_view("Dashboard")
+
         self.btn_launch.configure(state="disabled", text="Tarama Başlatılıyor...")
         self.progress_bar.pack(fill="x", pady=(10, 5))
         self.lbl_status.pack(pady=5)
@@ -374,7 +434,13 @@ class HydraScanApp(ctk.CTk):
         self.progress_bar.set(0) 
         self.lbl_status.configure(text="Sistem hazırlanıyor... (%0)")
 
-        scan_data = {"domain": domain, "gemini_key": key, "apk_path": self.selected_apk_path if "mobile" in selected_tools else None}
+        # Wordlist verisini ekledik
+        scan_data = {
+            "domain": domain, 
+            "gemini_key": key, 
+            "apk_path": self.selected_apk_path if "mobile" in selected_tools else None,
+            "wordlist": self.selected_wordlist_path # EKLENDİ
+        }
         
         try:
             scan_id = database.create_scan(scan_data, user_id=self.current_user['id'])
@@ -384,6 +450,11 @@ class HydraScanApp(ctk.CTk):
             self.reset_scan_ui()
 
     def run_scan_logic(self, scan_id, data, selected_tools):
+        # Log Callback Fonksiyonu
+        def log_cb(msg): self.log_queue.put(msg)
+
+        log_cb(f"[*] Tarama Başlatılıyor ID: {scan_id}\n")
+
         try:
             database.update_scan_status(scan_id, 'RUNNING')
             out = os.path.abspath(f"scan_outputs/scan_{scan_id}")
@@ -395,8 +466,19 @@ class HydraScanApp(ctk.CTk):
             
             futures = []
             with concurrent.futures.ThreadPoolExecutor() as ex:
-                futures.append(ex.submit(recon_module.run_reconnaissance, dom, out, img, selected_tools))
-                futures.append(ex.submit(web_app_module.run_web_tests, dom, out, img, selected_tools))
+                # Modüllere stream_callback parametresini gönderiyoruz (Hata vermemesi için try/except bloklarına alabilirsin eğer modüller güncel değilse, ama güncelledik)
+                try:
+                    futures.append(ex.submit(recon_module.run_reconnaissance, dom, out, img, selected_tools)) # Recon modülüne de callback eklemelisin sonra
+                except:
+                    futures.append(ex.submit(recon_module.run_reconnaissance, dom, out, img, selected_tools))
+
+                try:
+                    # Web modülüne wordlist ve callback gönderiyoruz
+                    futures.append(ex.submit(web_app_module.run_web_tests, dom, out, img, selected_tools, stream_callback=log_cb, custom_wordlist=data.get('wordlist')))
+                except TypeError:
+                    # Eski versiyon uyumluluğu
+                    futures.append(ex.submit(web_app_module.run_web_tests, dom, out, img, selected_tools))
+
                 if "mobile" in selected_tools and data['apk_path']:
                     futures.append(ex.submit(mobile_module.run_mobile_tests, data['apk_path'], out, img))
 
@@ -408,18 +490,32 @@ class HydraScanApp(ctk.CTk):
                     self.after(0, self.update_progress_ui, progress_val, f"Taramalar tamamlanıyor... (%{int(progress_val*100)})")
 
             self.after(0, self.update_progress_ui, 0.9, "AI Raporu hazırlanıyor... (%90)")
+            log_cb("[*] AI Raporu hazırlanıyor...\n")
+            
             database.update_scan_status(scan_id, 'REPORTING')
             path = report_module.generate_report(out, dom, data['gemini_key'])
             
             status = "COMPLETED" if path else "FAILED"
             database.complete_scan(scan_id, path, status)
+            
+            # Bildirim Gönder
+            self.send_notification(dom, status)
+            log_cb(f"[+] Tarama Tamamlandı. Durum: {status}\n")
+
             self.after(0, self.update_progress_ui, 1.0, "Tamamlandı! (%100)")
             self.after(1000, self.reset_scan_ui)
 
         except Exception as e:
             logging.error(e)
+            log_cb(f"[-] Kritik Hata: {e}\n")
             database.complete_scan(scan_id, None, "FAILED")
             self.after(0, self.reset_scan_ui)
+
+    def send_notification(self, domain, status): # EKLENDİ
+        webhook = self.config.get("webhook_url")
+        if webhook:
+            try: requests.post(webhook, json={"content": f"📢 HydraScan: {domain} taraması bitti. Durum: {status}"})
+            except: pass
 
     def update_progress_ui(self, val, text):
         self.progress_bar.set(val)
@@ -435,7 +531,7 @@ class HydraScanApp(ctk.CTk):
         self.show_view("Dashboard")
         messagebox.showinfo("Bitti", "İşlem tamamlandı.")
 
-    # --- REPORTS & SETTINGS ---
+    # --- REPORTS & SETTINGS (GÜNCELLENDİ: PDF BUTONU EKLENDİ) ---
     def create_reports_view(self):
         view = ctk.CTkFrame(self.main_area, fg_color="transparent")
         self.frames["Reports"] = view
@@ -452,7 +548,39 @@ class HydraScanApp(ctk.CTk):
         self.reports_tree.bind("<Double-1>", self.on_report_click)
         btn_frm = ctk.CTkFrame(view, fg_color="transparent")
         btn_frm.pack(fill="x", pady=10)
+        
+        # EKLENDİ: PDF BUTONU
+        ctk.CTkButton(btn_frm, text="📄 PDF İndir", fg_color=COLORS["success"], command=self.download_pdf_action).pack(side="left", padx=10)
+        
         ctk.CTkButton(btn_frm, text="Seçili Taramayı Sil", fg_color=COLORS["danger"], hover_color="#dc2626", command=self.delete_selected_scan).pack(side="right")
+
+    def download_pdf_action(self):
+        sel = self.reports_tree.selection()
+        if not sel: return messagebox.showwarning("Uyarı", "Lütfen bir rapor seçin.")
+        
+        # Seçili satırdan ID'yi al
+        sid = int(self.reports_tree.item(sel[0])['values'][0])
+        
+        # Veritabanından veriyi çek
+        scan = database.get_scan_by_id(sid)
+        
+        # HATA DÜZELTMESİ BURADA:
+        # scan.get(...) yerine scan[...] kullanıyoruz çünkü sqlite3.Row objesi .get() desteklemez.
+        try:
+            json_path = scan['report_file_path']
+        except:
+            json_path = None
+        
+        if not json_path or not os.path.exists(json_path):
+            return messagebox.showerror("Hata", "Rapor dosyası bulunamadı veya silinmiş.")
+            
+        save_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF Dosyası", "*.pdf")])
+        if save_path:
+            # report_module içindeki fonksiyonu çağır
+            if report_module.export_to_pdf(json_path, save_path):
+                messagebox.showinfo("Başarılı", "PDF başarıyla oluşturuldu.")
+            else:
+                messagebox.showerror("Hata", "PDF oluşturulurken bir hata oluştu.")
 
     def refresh_reports_list(self):
         self.sync_filesystem_to_db()
@@ -484,21 +612,41 @@ class HydraScanApp(ctk.CTk):
         cont = ctk.CTkFrame(view, fg_color=COLORS["bg_panel"], corner_radius=12)
         cont.pack(fill="both", expand=True, padx=50, pady=20)
         ctk.CTkLabel(cont, text="Uygulama Ayarları", font=("Roboto", 20, "bold"), text_color="white").pack(anchor="w", padx=40, pady=(40, 20))
+        
+        # API Key
         ctk.CTkLabel(cont, text="Varsayılan Gemini API Anahtarı", font=("Roboto", 14, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=40, pady=(10, 5))
         self.set_api = ctk.CTkEntry(cont, placeholder_text="API Key...", width=500, height=45, fg_color=COLORS["bg_main"], border_color=COLORS["border"])
         self.set_api.pack(anchor="w", padx=40, pady=(0, 20))
         if "api_key" in self.config: self.set_api.insert(0, self.config["api_key"])
-        ctk.CTkButton(cont, text="Ayarları Kaydet", width=200, height=45, fg_color=COLORS["success"], hover_color="#16a34a", command=self.save_settings).pack(anchor="w", padx=40, pady=(0, 40))
         
-        # --- DOCKER UPDATE BUTONU (GERİ GETİRİLDİ) ---
+        # EKLENDİ: Webhook URL & Tema
+        ctk.CTkLabel(cont, text="Bildirim Webhook (Discord/Slack)", font=("Roboto", 14, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=40, pady=(10, 5))
+        self.set_webhook = ctk.CTkEntry(cont, width=500, height=45, fg_color=COLORS["bg_main"])
+        self.set_webhook.pack(anchor="w", padx=40, pady=5)
+        if self.config.get("webhook_url"): self.set_webhook.insert(0, self.config["webhook_url"])
+        
+        ctk.CTkLabel(cont, text="Tema", font=("Roboto", 14, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=40, pady=(15, 5))
+        self.theme_switch = ctk.CTkSwitch(cont, text="Aydınlık Mod", command=self.toggle_theme)
+        self.theme_switch.pack(anchor="w", padx=40)
+        if self.config.get("theme") == "Light": self.theme_switch.select()
+
+        ctk.CTkButton(cont, text="Ayarları Kaydet", width=200, height=45, fg_color=COLORS["success"], hover_color="#16a34a", command=self.save_settings).pack(anchor="w", padx=40, pady=(30, 40))
+        
+        # --- DOCKER UPDATE BUTONU (AYNEN KORUNDU) ---
         ctk.CTkLabel(cont, text="Sistem Bakımı", font=("Roboto", 20, "bold"), text_color="white").pack(anchor="w", padx=40, pady=(20, 20))
         info_text = "Eğer araçlarda 'Command not found' veya 'Missing dependency' hatası alıyorsanız,\nbu butona basarak Pentest Araçlarını (Docker İmajını) yeniden yükleyin."
         ctk.CTkLabel(cont, text=info_text, font=("Roboto", 12), text_color=COLORS["text_gray"], justify="left").pack(anchor="w", padx=40, pady=(0, 15))
         self.btn_update_docker = ctk.CTkButton(cont, text="🛠️ Araçları Güncelle / Onar (Rebuild)", width=300, height=50, fg_color=COLORS["warning"], hover_color="#d97706", text_color="black", font=("Roboto", 14, "bold"), command=self.start_docker_update)
         self.btn_update_docker.pack(anchor="w", padx=40, pady=10)
 
+    def toggle_theme(self): # EKLENDİ
+        mode = "Light" if self.theme_switch.get() else "Dark"
+        ctk.set_appearance_mode(mode)
+        self.config["theme"] = mode
+
     def save_settings(self):
         self.config["api_key"] = self.set_api.get()
+        self.config["webhook_url"] = self.set_webhook.get() # EKLENDİ
         self.save_config()
         messagebox.showinfo("Başarılı", "Ayarlar kaydedildi.")
 
@@ -528,7 +676,7 @@ class HydraScanApp(ctk.CTk):
         finally:
             self.btn_update_docker.configure(state="normal", text="🛠️ Araçları Güncelle / Onar (Rebuild)")
 
-    # --- DETAY RAPOR (GÜNCELLENDİ: HATA DÜZELTİLDİ + BULGULAR/ÖNERİLER) ---
+    # --- DETAY RAPOR (AYNEN KORUNDU) ---
     def show_report_view(self, scan_id):
         if "ReportView" in self.frames: self.frames["ReportView"].destroy()
         scan = database.get_scan_by_id(scan_id)
@@ -536,7 +684,6 @@ class HydraScanApp(ctk.CTk):
         path = scan['report_file_path']
         if path and path.endswith(".html"): path = path.replace(".html", ".json")
         
-        # HATA DÜZELTİLDİ: Try-With ayrı satırlarda
         if path and os.path.exists(path):
             try:
                 with open(path, 'r', encoding='utf-8') as f:
@@ -563,7 +710,6 @@ class HydraScanApp(ctk.CTk):
         card = ctk.CTkFrame(parent, fg_color=COLORS["bg_panel"], corner_radius=10, border_width=1, border_color=COLORS["border"])
         card.pack(fill="x", pady=10)
         
-        # Header
         head = ctk.CTkFrame(card, fg_color="transparent")
         head.pack(fill="x", padx=20, pady=15)
         
@@ -582,19 +728,16 @@ class HydraScanApp(ctk.CTk):
         
         ctk.CTkLabel(right_box, text=risk, text_color="white", fg_color=col, corner_radius=6, padx=8).pack(side="left")
 
-        # ÖZET
         ctk.CTkLabel(card, text="ÖZET:", font=("Roboto", 12, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", padx=20, pady=(5,0))
         ozet_text = analiz.get("ozet", "Veri yok")
         ctk.CTkLabel(card, text=ozet_text, font=("Roboto", 13), text_color="white", wraplength=900, justify="left").pack(fill="x", padx=20, pady=(0, 10))
 
-        # BULGULAR (GÖSTERİLİYOR)
         bulgular = analiz.get("bulgular", [])
         if bulgular:
             ctk.CTkLabel(card, text="BULGULAR:", font=("Roboto", 12, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", padx=20, pady=(5,0))
             for b in bulgular:
                 ctk.CTkLabel(card, text=f"• {b}", font=("Roboto", 12), text_color="#cbd5e1", wraplength=900, justify="left").pack(anchor="w", padx=25, pady=1)
 
-        # ÖNERİLER (GÖSTERİLİYOR)
         oneriler = analiz.get("oneriler", [])
         if oneriler:
             ctk.CTkFrame(card, height=1, fg_color=COLORS["border"]).pack(fill="x", padx=20, pady=10) # Ayırıcı

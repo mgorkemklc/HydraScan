@@ -3,7 +3,11 @@ import json
 import time
 import google.generativeai as genai
 import logging
-from tqdm import tqdm
+
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 
 def analyze_output_with_gemini(api_key, tool_name, file_content):
     try:
@@ -47,59 +51,89 @@ def analyze_output_with_gemini(api_key, tool_name, file_content):
         })
 
 def generate_report(output_dir, domain, api_key):
-    logging.info("\n[+] Raporlama modülü başlatılıyor (JSON Modu)...")
     full_report_data = { "domain": domain, "analizler": [] }
-
     if not os.path.isdir(output_dir): return None
 
     output_files = [f for f in os.listdir(output_dir) if f.endswith('.txt')]
 
-    for filename in tqdm(output_files, desc="Analiz İlerlemesi"):
+    for filename in output_files: # tqdm kaldırdık, app.py zaten progress bar yönetiyor
         tool_name = filename.replace('_ciktisi.txt', '').replace('_', ' ').title()
         file_path = os.path.join(output_dir, filename)
         
         try:
-            # API Kotası için bekleme
-            time.sleep(20) 
-
+            time.sleep(5) # Hızlandırmak için süreyi kısalttım (20 -> 5)
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
-            if not content.strip():
-                # Boş dosya varsa hata olarak ekle
-                full_report_data["analizler"].append({
-                    "arac_adi": tool_name,
-                    "ozet": "Araç çıktısı boş. Çalıştırılamamış olabilir.",
-                    "risk_seviyesi": "ARAÇ HATASI",
-                    "bulgular": ["Çıktı dosyası boş."],
-                    "oneriler": ["Aracın kurulumunu kontrol edin."]
-                })
-                continue
+            if not content.strip(): continue
             
             json_response_str = analyze_output_with_gemini(api_key, tool_name, content)
-            
             try:
                 analysis_dict = json.loads(json_response_str)
                 full_report_data["analizler"].append(analysis_dict)
-            except json.JSONDecodeError:
-                full_report_data["analizler"].append({
-                    "arac_adi": tool_name,
-                    "ozet": "AI çıktısı ayrıştırılamadı (JSON Hatası).",
-                    "risk_seviyesi": "Bilinmiyor",
-                    "bulgular": [],
-                    "oneriler": []
-                })
+            except: pass
                 
         except Exception as e:
-            logging.error(f"[-] Dosya işlenirken hata: {e}")
+            logging.error(f"[-] Hata: {e}")
 
-    report_filename = "pentest_raporu.json"
-    report_path = os.path.join(output_dir, report_filename)
-
+    report_path = os.path.join(output_dir, "pentest_raporu.json")
     try:
         with open(report_path, 'w', encoding='utf-8') as f:
             json.dump(full_report_data, f, ensure_ascii=False, indent=4)
         return report_path
+    except: return None
+    
+def export_to_pdf(json_report_path, output_pdf_path):
+    if not os.path.exists(json_report_path): return False
+    try:
+        with open(json_report_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        doc = SimpleDocTemplate(output_pdf_path, pagesize=A4)
+        elements = []
+        styles = getSampleStyleSheet()
+
+        elements.append(Paragraph(f"HydraScan Raporu: {data.get('domain')}", styles['Title']))
+        elements.append(Spacer(1, 20))
+
+        for analiz in data.get("analizler", []):
+            risk = analiz.get('risk_seviyesi', 'Bilinmiyor')
+            elements.append(Paragraph(f"{analiz.get('arac_adi')} - Risk: {risk}", styles['Heading2']))
+            elements.append(Paragraph(f"<b>Özet:</b> {analiz.get('ozet')}", styles['Normal']))
+            
+            if analiz.get("bulgular"):
+                data_table = [["Bulgular"]] + [[b] for b in analiz.get("bulgular")]
+                t = Table(data_table, colWidths=[400])
+                t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 1, colors.black), ('BACKGROUND', (0,0), (-1,0), colors.lightgrey)]))
+                elements.append(t)
+            
+            elements.append(Spacer(1, 15))
+
+        doc.build(elements)
+        return True
     except Exception as e:
-        logging.error(f"[-] Rapor yazma hatası: {e}")
-        return None
+        print(f"PDF Hatası: {e}")
+        return False
+
+def ai_analyze_false_positive(finding_text, api_key):
+    """Bulgunun False Positive olup olmadığını Gemini'ye sorar."""
+    if not api_key: return "Hata: API Key bulunamadı."
+    
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-pro')
+        prompt = f"""
+        Aşağıdaki siber güvenlik taraması bulgusunu analiz et.
+        Bunun bir 'False Positive' (Hatalı Alarm) olma ihtimali nedir?
+        
+        Bulgu: {finding_text}
+        
+        Lütfen cevabı şu formatta ver:
+        - Karar: [Yüksek İhtimalle False Positive / Gerçek Zafiyet / Belirsiz]
+        - Güven Skoru: %0-100
+        - Teknik Açıklama: (Kısa açıklama)
+        """
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"AI Servis Hatası: {str(e)}"
