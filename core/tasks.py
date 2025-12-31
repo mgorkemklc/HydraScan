@@ -41,8 +41,8 @@ def get_clean_domain(domain_with_port):
         return domain_with_port.split(':')[0]
     return domain_with_port
 
-@shared_task
-def run_hydrascan_task(scan_id):
+@shared_task(bind=True)
+def run_hydrascan_task(self, scan_id):
     
     try:
         scan = Scan.objects.get(id=scan_id)
@@ -50,6 +50,7 @@ def run_hydrascan_task(scan_id):
         logging.error(f"[-] Hata: Scan ID {scan_id} bulunamadı.")
         return
 
+    scan.celery_task_id = self.request.id
     scan.status = 'RUNNING'
     scan.save()
     

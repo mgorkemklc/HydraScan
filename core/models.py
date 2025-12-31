@@ -8,6 +8,7 @@ class Scan(models.Model):
         ('REPORTING', 'Rapor Oluşturuluyor'),
         ('COMPLETED', 'Tamamlandı'),
         ('FAILED', 'Hata'),
+        ('CANCELLED', 'İptal Edildi'),
     ]
 
     # main.py'deki 'domain_input' (örn: localhost:3000)
@@ -26,6 +27,8 @@ class Scan(models.Model):
     apk_file_s3_path = models.CharField(max_length=1024, blank=True, null=True)
 
     # main.py'deki 'api_key' (DİKKAT: Bunu kullanıcıya bağlamak daha güvenli)
+
+    celery_task_id = models.CharField(max_length=50, blank=True, null=True)
 
     # İşin durumunu takip etmek için
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')

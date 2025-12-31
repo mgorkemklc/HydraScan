@@ -3,6 +3,8 @@
 from django.shortcuts import render, redirect
 from .models import Scan
 from .tasks import run_hydrascan_task
+from celery.result import AsyncResult # Bu importu ekle
+from django.contrib import messages   # Kullanıcıya mesaj göstermek istersen
 
 def dashboard_view(request):
     """
@@ -54,3 +56,29 @@ def scan_detail_view(request, scan_id):
     # Bu sayfa, taramanın durumunu (PENDING, RUNNING, COMPLETED) gösterir
     # ve bittiyse raporu gösterir.
     return render(request, 'core/scan_detail.html', {'scan': scan})
+
+def cancel_scan_view(request, scan_id):
+    """
+    Devam eden bir taramayı iptal eder.
+    """
+    try:
+        scan = Scan.objects.get(id=scan_id)
+        
+        # Sadece çalışıyorsa veya beklemedeyse iptal et
+        if scan.status in ['RUNNING', 'PENDING', 'REPORTING']:
+            
+            # Celery görevini durdur
+            if scan.celery_task_id:
+                # terminate=True: Görevi zorla sonlandırır
+                AsyncResult(scan.celery_task_id).revoke(terminate=True)
+            
+            scan.status = 'CANCELLED'
+            scan.save()
+            # Opsiyonel: Mesaj ekle
+            # messages.warning(request, "Tarama kullanıcı tarafından iptal edildi.")
+            
+    except Scan.DoesNotExist:
+        pass # Veya 404 hatası döndür
+    
+    # İşlem bitince detay sayfasına veya dashboard'a geri dön
+    return redirect('dashboard_view')
