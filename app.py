@@ -892,10 +892,11 @@ class HydraScanApp(ctk.CTk):
         self.btn_update_docker = ctk.CTkButton(cont, text="🛠️ Araçları Güncelle / Onar (Rebuild)", width=300, height=50, fg_color=COLORS["warning"], hover_color="#d97706", text_color="black", font=("Roboto", 14, "bold"), command=self.start_docker_update)
         self.btn_update_docker.pack(anchor="w", padx=40, pady=10)
 
-    def toggle_theme(self): # EKLENDİ
+    def toggle_theme(self):
         mode = "Light" if self.theme_switch.get() else "Dark"
         ctk.set_appearance_mode(mode)
         self.config["theme"] = mode
+        self.save_config()  # BU SATIR EKSİKTİ, EKLENDİ.
 
     def save_settings(self):
         self.config["api_key"] = self.set_api.get()

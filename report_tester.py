@@ -55,7 +55,3 @@ def main():
         print(f"\n[+] Rapor başarıyla oluşturuldu/güncellendi: '{report_path}'")
     else:
          print(f"\n[-] Rapor oluşturma başarısız oldu. Hata mesajlarına bakın.")
-
-
-if __name__ == "__main__":
-    main()

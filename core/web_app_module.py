@@ -51,13 +51,13 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[], strea
         commands["commix_ciktisi.txt"] = f"commix -u {target_url} --crawl=2 --batch"
 
     if "wapiti" in selected_tools:
-        # --max-scan-time 600 ve --depth 2 eklendi (Çok önemli)
-        # timeout 12m komutu eklendi (Linux seviyesinde kill eder)
-        commands["wapiti_ciktisi.txt"] = f"timeout 12m wapiti -u {target_url} --flush-session -v 1 --max-scan-time 600 --depth 2 --scope folder"
+        # KRİTİK: Wapiti'ye 'timeout 10m' ve '--max-scan-time 600' eklendi.
+        # Artık 10 dakikayı geçerse otomatik durdurulacak.
+        commands["wapiti_ciktisi.txt"] = f"timeout 10m wapiti -u {target_url} --flush-session -v 1 --max-scan-time 600 --depth 2 --scope folder"
     
     if "hydra" in selected_tools:
         domain_only = target_url.split("//")[-1].split("/")[0]
-        # -W 1 eklendi (Bekleme süresini düşürür, takılmayı önler)
+        # -W 1 eklendi (Bekleme süresi 1sn)
         commands["hydra_ciktisi.txt"] = f"hydra -l admin -P /usr/share/wordlists/rockyou.txt ssh://{domain_only} -t 4 -I -f -W 1"
 
     for output_filename, command in commands.items():
