@@ -1,5 +1,3 @@
-# core/tasks.py
-
 import os
 import logging
 from celery import shared_task
@@ -14,7 +12,6 @@ from . import recon_module
 from . import web_app_module
 from . import api_module
 from . import internal_network_module
-# cloud_module AWS olduğu için kaldırdık veya pas geçtik
 from . import report_module
 
 def get_clean_domain(domain_with_port):
@@ -30,118 +27,111 @@ def run_hydrascan_task(self, scan_id):
         logging.error(f"[-] Hata: Scan ID {scan_id} bulunamadı.")
         return
 
+    # --- LOGLAMA FONKSİYONU ---
+    # Bu fonksiyon modüllerden gelen mesajları Redis üzerinden arayüze taşır
+    def log_callback(message):
+        docker_helper.log_to_redis(scan_id, message)
+
     scan.celery_task_id = self.request.id
     scan.status = 'RUNNING'
     scan.save()
     
-    # --- YEREL KLASÖR AYARLAMASI ---
-    # S3 yerine projenin media klasörüne yazacağız.
     local_output_dir = os.path.join(settings.MEDIA_ROOT, f"scan_outputs/scan_{scan.id}")
     os.makedirs(local_output_dir, exist_ok=True)
-    
     scan.output_directory = local_output_dir
     scan.save()
-    # -------------------------------
 
     domain_input = scan.target_full_domain
-    clean_domain = get_clean_domain(domain_input)
     internal_ip_range = scan.internal_ip_range
-    
-    # API key settings'den alınır
-    api_key = getattr(settings, 'GEMINI_API_KEY', None)
-    
     image_name = "pentest-araci-kali:v1.5"
     
-    # Araç Listeleri (Burayı veritabanından veya dinamik alabilirsin, şimdilik sabit)
     recon_tools = ["whois", "subfinder", "amass", "dig", "nmap"]
-    web_tools = ["gobuster", "nikto", "nuclei", "sqlmap", "dalfox", "commix", "wapiti"]
-    # api_tools listesi şu an api_module içinde sabit, parametre gerekmiyor
+    web_tools = ["gobuster", "nikto", "nuclei", "sqlmap", "dalfox", "commix", "wapiti", "hydra"]
 
     try:
-        logging.info(f"\n[+] Scan ID {scan.id} için PARALEL görevler başlatılıyor...")
+        log_callback(f"\n[+] Scan ID {scan.id} için tarama başlatılıyor...\n")
         
-        # --- PARALEL İŞLEM (DEADLOCK OLMADAN) ---
-        # S3 client göndermediğimiz için takılma yapmayacak.
+        # --- PARALEL İŞLEM ---
         with concurrent.futures.ProcessPoolExecutor() as executor:
             futures = []
             
-            # 1. Recon Modülü
+            # Recon Modülü
             futures.append(executor.submit(
                 recon_module.run_reconnaissance, 
                 domain_input, 
-                local_output_dir, # output_dir
+                local_output_dir, 
                 image_name, 
-                recon_tools       # selected_tools
+                recon_tools,
+                log_callback # Loglama eklendi
             ))
             
-            # 2. Web Modülü
+            # Web Modülü
             futures.append(executor.submit(
                 web_app_module.run_web_tests, 
                 domain_input, 
-                local_output_dir, # output_dir
+                local_output_dir, 
                 image_name, 
-                web_tools         # selected_tools
+                web_tools,
+                log_callback # Loglama eklendi
             ))
             
-            # 3. API Modülü (Not: api_module parametre sırası farklı olabilir, kontrol ettim: domain, image, output)
+            # API Modülü
             futures.append(executor.submit(
                 api_module.run_api_tests, 
                 domain_input, 
                 image_name, 
-                local_output_dir # output_dir sonda
+                local_output_dir,
+                [], 
+                log_callback # Loglama eklendi
             ))
 
-            # Sonuçları bekle
             for future in concurrent.futures.as_completed(futures):
                 try:
                     future.result()
                 except Exception as exc:
-                    logging.error(f"[-] Bir paralel işlem hata verdi: {exc}")
+                    logging.error(f"[-] Bir işlem hata verdi: {exc}")
+                    log_callback(f"[-] Kritik Hata: {exc}\n")
         
-        logging.info("\n[+] Paralel görevler tamamlandı.")
+        log_callback("\n[+] Paralel görevler tamamlandı.\n")
         
-        # Sıralı Modüller (İç Ağ vb.)
         if internal_ip_range:
-            logging.info("--> İç Ağ Modülü çalıştırılıyor...")
             internal_network_module.run_internal_tests(internal_ip_range, local_output_dir, image_name)
 
-        # Cloud modülü AWS gerektirdiği için tamamen çıkartıldı.
-
     except Exception as e:
-        logging.exception(f"[-] Scan ID {scan.id} testler sırasında çöktü: {e}")
+        logging.exception(f"[-] Scan ID {scan.id} çöktü: {e}")
         scan.status = 'FAILED'
         scan.save()
         return
 
-    # --- RAPORLAMA (YEREL) ---
+    # --- RAPORLAMA (ARTIK LOGLU) ---
     try:
-        logging.info(f"\n[+] Scan ID {scan.id} için rapor oluşturuluyor...")
+        log_callback(f"\n[*] AI Raporu hazırlanıyor...\n")
         scan.status = 'REPORTING'
         scan.save()
         
-        # Report modülü artık S3 client istemiyor, sadece ID ve Domain alıyor
-        # json rapor yolunu döndürecek
-        report_json_path = report_module.generate_pentest_report(
-            scan.id,
+        api_key = getattr(settings, 'GEMINI_API_KEY', None)
+        
+        # BURADA stream_callback PARAMETRESİNİ GÖNDERİYORUZ
+        report_json_path = report_module.generate_report(
+            local_output_dir,
             domain_input,
-            scan.user.id
+            api_key,
+            stream_callback=log_callback 
         )
         
         if report_json_path and os.path.exists(report_json_path):
-            # İsteğe bağlı PDF çevirme
-            pdf_path = report_module.export_to_pdf(report_json_path)
-            
-            scan.report_file_path = pdf_path if pdf_path else report_json_path
+            scan.report_file_path = report_json_path
             scan.status = 'COMPLETED'
-            logging.info(f"\n[+] Rapor başarıyla oluşturuldu: {scan.report_file_path}")
+            log_callback(f"[+] Rapor ve Analiz Tamamlandı. Dosya: {os.path.basename(report_json_path)}\n")
         else:
-            logging.error(f"[-] Rapor JSON dosyası oluşturulamadı.")
-            # Yine de COMPLETED diyebiliriz, tarama bitti çünkü
+            log_callback(f"[-] Rapor oluşturulamadı (Dosya oluşmadı).\n")
             scan.status = 'COMPLETED' 
     
     except Exception as e:
-        logging.exception(f"[-] Raporlama sırasında hata: {e}")
+        logging.exception(f"[-] Raporlama hatası: {e}")
+        log_callback(f"[-] Raporlama sırasında hata oluştu: {e}\n")
         scan.status = 'FAILED'
 
     scan.completed_at = datetime.now()
     scan.save()
+    log_callback(f"[+] İşlem Bitti. Durum: {scan.status}\n")
