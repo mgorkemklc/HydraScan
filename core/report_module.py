@@ -19,15 +19,13 @@ def check_and_download_font():
         try:
             os.makedirs(FONTS_DIR)
         except OSError:
-            pass # Klasör zaten varsa devam et
+            pass 
     
     if not os.path.exists(FONT_PATH):
-        print(f"[*] Font bulunamadı, indiriliyor: {FONT_NAME}...")
         try:
             r = requests.get(FONT_URL, timeout=10)
             with open(FONT_PATH, 'wb') as f:
                 f.write(r.content)
-            print(f"[+] Font başarıyla indirildi: {FONT_PATH}")
         except Exception as e:
             print(f"[-] Font indirme hatası: {e}")
             return False
@@ -37,22 +35,9 @@ def check_and_download_font():
 # BÖLÜM 1: GEMINI AI İLE RAPOR OLUŞTURMA (ANALİZ)
 # =============================================================================
 
-def get_api_key():
-    """Config dosyasından API anahtarını çeker."""
-    try:
-        config_path = "config.json"
-        if os.path.exists(config_path):
-            with open(config_path, "r") as f:
-                config = json.load(f)
-                return config.get("api_key")
-    except Exception as e:
-        print(f"Config okuma hatası: {e}")
-    return None
-
 def read_tool_outputs(scan_folder):
     """Tarama klasöründeki tüm .txt çıktılarını okur ve birleştirir."""
     combined_output = ""
-    # *_ciktisi.txt veya *_analizi.txt gibi dosyaları bul
     files = glob.glob(os.path.join(scan_folder, "*_*.txt"))
     
     if not files:
@@ -71,17 +56,19 @@ def read_tool_outputs(scan_folder):
             
     return combined_output
 
-def generate_pentest_report(scan_id, target_domain, user_id):
+def generate_report(scan_folder_path, target_domain, api_key):
     """
-    Tool çıktılarını okur, Gemini'ye gönderir ve JSON rapor üretir.
+    DÜZELTME: app.py ile uyumlu olması için fonksiyon adı 'generate_report' yapıldı.
     """
-    api_key = get_api_key()
     if not api_key:
-        print("[-] API Anahtarı bulunamadı!")
+        print("[-] API Anahtarı eksik!")
         return None
 
-    scan_folder = os.path.join("scan_outputs", f"scan_{scan_id}")
-    tool_outputs = read_tool_outputs(scan_folder)
+    if not os.path.exists(scan_folder_path):
+        print(f"[-] Klasör bulunamadı: {scan_folder_path}")
+        return None
+
+    tool_outputs = read_tool_outputs(scan_folder_path)
 
     # --- PROMPT TASARIMI ---
     prompt = f"""
@@ -125,12 +112,11 @@ def generate_pentest_report(scan_id, target_domain, user_id):
 
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-pro') # Hız ve maliyet için flash
+        model = genai.GenerativeModel('gemini-1.5-flash') 
         
-        print(f"[*] Gemini analizi başlıyor (Scan ID: {scan_id})...")
+        print(f"[*] Gemini analizi başlıyor...")
         response = model.generate_content(prompt)
         
-        # JSON Temizliği (Markdown temizleme)
         raw_text = response.text.strip()
         if raw_text.startswith("```json"):
             raw_text = raw_text[7:]
@@ -139,8 +125,7 @@ def generate_pentest_report(scan_id, target_domain, user_id):
         
         report_json = json.loads(raw_text.strip())
         
-        # JSON'u Kaydet
-        json_path = os.path.join(scan_folder, "pentest_raporu.json")
+        json_path = os.path.join(scan_folder_path, "pentest_raporu.json")
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(report_json, f, ensure_ascii=False, indent=4)
             
@@ -152,7 +137,7 @@ def generate_pentest_report(scan_id, target_domain, user_id):
         return None
 
 # =============================================================================
-# BÖLÜM 2: PDF ÇIKTISI (GÖRSEL TASARIM)
+# BÖLÜM 2: PDF ÇIKTISI
 # =============================================================================
 
 class PDFReport(FPDF):
@@ -161,7 +146,6 @@ class PDFReport(FPDF):
         self.target_domain = target_domain
         self.set_auto_page_break(auto=True, margin=15)
         
-        # Font Yükleme
         if check_and_download_font():
             self.add_font(FONT_NAME, "", FONT_PATH, uni=True)
             self.main_font = FONT_NAME
@@ -182,22 +166,13 @@ class PDFReport(FPDF):
 
     def chapter_title(self, arac_adi, risk_level):
         colors = {
-            "KRITIK": (220, 53, 69),   # Kırmızı
-            "CRITICAL": (220, 53, 69),
-            "YÜKSEK": (253, 126, 20),  # Turuncu
-            "HIGH": (253, 126, 20),
-            "ORTA": (255, 193, 7),     # Sarı
-            "MEDIUM": (255, 193, 7),
-            "DÜŞÜK": (40, 167, 69),    # Yeşil
-            "LOW": (40, 167, 69),
-            "BILGI": (23, 162, 184),   # Mavi
-            "INFO": (23, 162, 184),
-            "ARAÇ HATASI": (108, 117, 125) # Gri
+            "KRITIK": (220, 53, 69), "YÜKSEK": (253, 126, 20),
+            "ORTA": (255, 193, 7), "DÜŞÜK": (40, 167, 69),
+            "BILGI": (23, 162, 184), "ARAÇ HATASI": (108, 117, 125)
         }
         
-        # Risk seviyesini standartlaştır
         risk_key = risk_level.upper().replace("İ", "I").replace("ı", "I")
-        r, g, b = (108, 117, 125) # Varsayılan gri
+        r, g, b = (108, 117, 125)
         
         for k, v in colors.items():
             if k in risk_key:
@@ -220,13 +195,16 @@ class PDFReport(FPDF):
 
     def add_list_item(self, text):
         self.set_font(self.main_font, "", 11)
-        self.cell(5) # Girinti
-        self.cell(5, 6, "-", align="R") # Bullet
+        self.cell(5)
+        self.cell(5, 6, "-", align="R")
         self.multi_cell(0, 6, text)
         self.ln(1)
 
-def export_to_pdf(json_path):
-    """JSON dosyasını okur ve PDF oluşturur."""
+def export_to_pdf(json_path, output_path=None):
+    """
+    DÜZELTME: output_path parametresi eklendi.
+    Böylece 'Farklı Kaydet' penceresinden gelen yol kullanılabilir.
+    """
     if not os.path.exists(json_path):
         return None
 
@@ -279,7 +257,9 @@ def export_to_pdf(json_path):
             
             pdf.ln(5)
 
-        output_path = json_path.replace(".json", ".pdf")
+        if not output_path:
+            output_path = json_path.replace(".json", ".pdf")
+            
         pdf.output(output_path)
         return output_path
 

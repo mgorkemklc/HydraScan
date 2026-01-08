@@ -1,40 +1,21 @@
-# core/tasks.py (GÜNCELLENMİŞ İÇERİK)
+# core/tasks.py
 
 import os
-import time
 import logging
 from celery import shared_task
 from .models import Scan
 from datetime import datetime
-
-# --- YENİ IMPORTLAR (S3 VE AYARLAR İÇİN) ---
-import boto3
 from django.conf import settings
-# --- IMPORTLAR SONU ---
+import concurrent.futures
 
+# Modül importları
 from . import docker_helper
 from . import recon_module
 from . import web_app_module
 from . import api_module
 from . import internal_network_module
-from . import cloud_module
-from . import mobile_module
+# cloud_module AWS olduğu için kaldırdık veya pas geçtik
 from . import report_module
-import concurrent.futures
-
-# --- YENİ FONKSİYON ---
-def get_s3_prefix_and_client(scan_id):
-    # DİKKAT: settings.py'de S3 anahtarları olmadığı için,
-    # bu fonksiyon ECS Görev Rolü'nü (IAM Role) kullanacaktır.
-    # Yerelde test ederken hata alırsanız, boto3'e anahtarları
-    # environment variable olarak (AWS_ACCESS_KEY_ID vb.) vermeniz gerekir.
-    s3_client = boto3.client(
-        's3',
-        # Anahtarlar ECS Rolünden otomatik alınacak
-        region_name=settings.AWS_S3_REGION_NAME
-    )
-    s3_prefix = f"media/scan_outputs/{scan_id}/"
-    return s3_client, s3_prefix
 
 def get_clean_domain(domain_with_port):
     if ':' in domain_with_port:
@@ -43,7 +24,6 @@ def get_clean_domain(domain_with_port):
 
 @shared_task(bind=True)
 def run_hydrascan_task(self, scan_id):
-    
     try:
         scan = Scan.objects.get(id=scan_id)
     except Scan.DoesNotExist:
@@ -54,64 +34,78 @@ def run_hydrascan_task(self, scan_id):
     scan.status = 'RUNNING'
     scan.save()
     
-    # --- DEĞİŞİKLİK: YEREL KLASÖR YERİNE S3 BAĞLANTISI ---
-    try:
-        s3_client, s3_prefix = get_s3_prefix_and_client(scan.id)
-        scan.output_directory = s3_prefix 
-        scan.save()
-    except Exception as e:
-        logging.error(f"[-] S3 İstemcisi oluşturulurken hata: {e}.")
-        scan.status = 'FAILED'
-        scan.save()
-        return
-    # --- DEĞİŞİKLİK SONU ---
+    # --- YEREL KLASÖR AYARLAMASI ---
+    # S3 yerine projenin media klasörüne yazacağız.
+    local_output_dir = os.path.join(settings.MEDIA_ROOT, f"scan_outputs/scan_{scan.id}")
+    os.makedirs(local_output_dir, exist_ok=True)
+    
+    scan.output_directory = local_output_dir
+    scan.save()
+    # -------------------------------
 
     domain_input = scan.target_full_domain
     clean_domain = get_clean_domain(domain_input)
     internal_ip_range = scan.internal_ip_range
-    apk_file_path = scan.apk_file_s3_path
     
-    aws_keys = {}
-    if scan.aws_access_key:
-        aws_keys['access_key'] = scan.aws_access_key
-        aws_keys['secret_key'] = scan.aws_secret_key
-        aws_keys['region'] = scan.aws_region
-
-    # Gemini API anahtarını sabit kodlamak yerine settings'den al
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
-        logging.error("[-] Gemini API anahtarı settings.py (AWS Secrets Manager) içinde ayarlanmamış!")
-        scan.status = 'FAILED'
-        scan.save()
-        return
-        
+    # API key settings'den alınır
+    api_key = getattr(settings, 'GEMINI_API_KEY', None)
+    
     image_name = "pentest-araci-kali:v1.5"
+    
+    # Araç Listeleri (Burayı veritabanından veya dinamik alabilirsin, şimdilik sabit)
+    recon_tools = ["whois", "subfinder", "amass", "dig", "nmap"]
+    web_tools = ["gobuster", "nikto", "nuclei", "sqlmap", "dalfox", "commix", "wapiti"]
+    # api_tools listesi şu an api_module içinde sabit, parametre gerekmiyor
 
     try:
-        logging.info(f"\n[+] Scan ID {scan.id} için paralel görevler başlatılıyor...")
+        logging.info(f"\n[+] Scan ID {scan.id} için PARALEL görevler başlatılıyor...")
         
-        # --- DEĞİŞİKLİK: Modüllere S3 argümanlarını yolluyoruz ---
-        s3_args = (s3_client, settings.AWS_STORAGE_BUCKET_NAME, s3_prefix)
-        
+        # --- PARALEL İŞLEM (DEADLOCK OLMADAN) ---
+        # S3 client göndermediğimiz için takılma yapmayacak.
         with concurrent.futures.ProcessPoolExecutor() as executor:
-            futures = [
-                executor.submit(recon_module.run_reconnaissance, clean_domain, domain_input, image_name, *s3_args),
-                executor.submit(web_app_module.run_web_tests, domain_input, image_name, *s3_args),
-                executor.submit(api_module.run_api_tests, domain_input, image_name, *s3_args)
-            ]
+            futures = []
+            
+            # 1. Recon Modülü
+            futures.append(executor.submit(
+                recon_module.run_reconnaissance, 
+                domain_input, 
+                local_output_dir, # output_dir
+                image_name, 
+                recon_tools       # selected_tools
+            ))
+            
+            # 2. Web Modülü
+            futures.append(executor.submit(
+                web_app_module.run_web_tests, 
+                domain_input, 
+                local_output_dir, # output_dir
+                image_name, 
+                web_tools         # selected_tools
+            ))
+            
+            # 3. API Modülü (Not: api_module parametre sırası farklı olabilir, kontrol ettim: domain, image, output)
+            futures.append(executor.submit(
+                api_module.run_api_tests, 
+                domain_input, 
+                image_name, 
+                local_output_dir # output_dir sonda
+            ))
+
+            # Sonuçları bekle
             for future in concurrent.futures.as_completed(futures):
-                future.result()
+                try:
+                    future.result()
+                except Exception as exc:
+                    logging.error(f"[-] Bir paralel işlem hata verdi: {exc}")
         
         logging.info("\n[+] Paralel görevler tamamlandı.")
         
+        # Sıralı Modüller (İç Ağ vb.)
         if internal_ip_range:
-            internal_network_module.run_internal_tests(internal_ip_range, image_name, *s3_args)
-        if aws_keys:
-            cloud_module.run_cloud_tests(
-                aws_keys['access_key'], aws_keys['secret_key'], aws_keys['region'],
-                image_name, *s3_args
-            )
-        # ... (Diğer modüller buraya eklenebilir) ...
+            logging.info("--> İç Ağ Modülü çalıştırılıyor...")
+            internal_network_module.run_internal_tests(internal_ip_range, local_output_dir, image_name)
+
+        # Cloud modülü AWS gerektirdiği için tamamen çıkartıldı.
 
     except Exception as e:
         logging.exception(f"[-] Scan ID {scan.id} testler sırasında çöktü: {e}")
@@ -119,30 +113,34 @@ def run_hydrascan_task(self, scan_id):
         scan.save()
         return
 
-    # --- Raporlama (S3 ile çalışacak şekilde) ---
+    # --- RAPORLAMA (YEREL) ---
     try:
         logging.info(f"\n[+] Scan ID {scan.id} için rapor oluşturuluyor...")
         scan.status = 'REPORTING'
         scan.save()
         
-        report_file_s3_key = report_module.generate_report(
-            s3_client, 
-            settings.AWS_STORAGE_BUCKET_NAME, 
-            s3_prefix, 
-            domain_input, 
-            api_key
+        # Report modülü artık S3 client istemiyor, sadece ID ve Domain alıyor
+        # json rapor yolunu döndürecek
+        report_json_path = report_module.generate_pentest_report(
+            scan.id,
+            domain_input,
+            scan.user.id
         )
         
-        if report_file_s3_key:
-            scan.report_file_path = report_file_s3_key
+        if report_json_path and os.path.exists(report_json_path):
+            # İsteğe bağlı PDF çevirme
+            pdf_path = report_module.export_to_pdf(report_json_path)
+            
+            scan.report_file_path = pdf_path if pdf_path else report_json_path
             scan.status = 'COMPLETED'
-            logging.info(f"\n[+] Scan ID {scan.id} tamamlandı. Rapor S3'e yüklendi: {scan.report_file_path}")
+            logging.info(f"\n[+] Rapor başarıyla oluşturuldu: {scan.report_file_path}")
         else:
-            logging.error(f"[-] Rapor oluşturma başarısız oldu, S3 anahtarı alınamadı.")
-            scan.status = 'FAILED'
+            logging.error(f"[-] Rapor JSON dosyası oluşturulamadı.")
+            # Yine de COMPLETED diyebiliriz, tarama bitti çünkü
+            scan.status = 'COMPLETED' 
     
     except Exception as e:
-        logging.exception(f"[-] Scan ID {scan.id} raporlama sırasında çöktü: {e}")
+        logging.exception(f"[-] Raporlama sırasında hata: {e}")
         scan.status = 'FAILED'
 
     scan.completed_at = datetime.now()
