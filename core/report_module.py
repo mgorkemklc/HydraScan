@@ -6,45 +6,34 @@ import requests
 import google.generativeai as genai
 from fpdf import FPDF
 
-# --- AYARLAR VE SABİTLER ---
+# --- AYARLAR ---
 FONTS_DIR = os.path.join(os.getcwd(), "assets", "fonts")
 FONT_NAME = "DejaVuSans"
 FONT_PATH = os.path.join(FONTS_DIR, "DejaVuSans.ttf")
+# Alternatif indirme linki
 FONT_URL = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
 
-# --- YARDIMCI FONKSİYONLAR ---
 def check_and_download_font():
-    """Türkçe karakter destekleyen fontu kontrol eder, yoksa indirir."""
     if not os.path.exists(FONTS_DIR):
-        try:
-            os.makedirs(FONTS_DIR)
-        except OSError:
-            pass 
+        try: os.makedirs(FONTS_DIR)
+        except OSError: pass
     
-    if not os.path.exists(FONT_PATH):
-        print(f"[*] Font bulunamadı, indiriliyor: {FONT_NAME}...")
+    # Dosya yoksa veya boyutu çok küçükse indir
+    if not os.path.exists(FONT_PATH) or os.path.getsize(FONT_PATH) < 50000:
+        print(f"[*] Font indiriliyor...")
         try:
-            r = requests.get(FONT_URL, timeout=10)
-            with open(FONT_PATH, 'wb') as f:
-                f.write(r.content)
-            print(f"[+] Font başarıyla indirildi: {FONT_PATH}")
-        except Exception as e:
-            print(f"[-] Font indirme hatası: {e}")
-            return False
+            r = requests.get(FONT_URL, timeout=20)
+            if r.status_code == 200:
+                with open(FONT_PATH, 'wb') as f: f.write(r.content)
+                return True
+        except: pass
+        return False
     return True
 
-# =============================================================================
-# BÖLÜM 1: GEMINI AI İLE RAPOR OLUŞTURMA (ANALİZ)
-# =============================================================================
-
 def read_tool_outputs(scan_folder):
-    """Tarama klasöründeki tüm .txt çıktılarını okur ve birleştirir."""
     combined_output = ""
-    # *_ciktisi.txt dosyalarını bul
     files = glob.glob(os.path.join(scan_folder, "*_*.txt"))
-    
-    if not files:
-        return "Herhangi bir araç çıktısı bulunamadı."
+    if not files: return "Araç çıktısı bulunamadı."
 
     for file_path in files:
         tool_name = os.path.basename(file_path).split('_')[0].upper()
@@ -52,109 +41,55 @@ def read_tool_outputs(scan_folder):
             with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read().strip()
                 if content:
-                    # Başlık ekle
-                    combined_output += f"\n\n{'='*40}\n"
-                    combined_output += f"=== {tool_name} ÇIKTISI ===\n"
-                    combined_output += f"{'='*40}\n"
-                    combined_output += f"{content}\n"
-                    combined_output += f"{'='*40}\n"
-        except Exception as e:
-            print(f"[-] Dosya okuma hatası ({file_path}): {e}")
-            
+                    combined_output += f"\n=== {tool_name} ===\n{content[:8000]}\n"
+        except: pass
     return combined_output
 
 def generate_report(scan_folder_path, target_domain, api_key):
-    """
-    Tool çıktılarını okur, Gemini'ye gönderir ve JSON rapor üretir.
-    (Fonksiyon adı app.py ile uyumlu hale getirildi: generate_report)
-    """
-    if not api_key:
-        print("[-] API Anahtarı eksik!")
-        return None
-
-    if not os.path.exists(scan_folder_path):
-        print(f"[-] Klasör bulunamadı: {scan_folder_path}")
-        return None
-
-    print(f"[*] Rapor verileri okunuyor: {scan_folder_path}")
+    if not api_key or not os.path.exists(scan_folder_path): return None
+    
     tool_outputs = read_tool_outputs(scan_folder_path)
-
-    # --- UZUN VE DETAYLI PROMPT (ORİJİNAL) ---
+    
     prompt = f"""
-    Sen kıdemli bir Siber Güvenlik ve Sızma Testi Uzmanısın (Pentester).
-    Aşağıda, '{target_domain}' hedefi için yapılan otomatik tarama araçlarının ham çıktıları bulunmaktadır.
+    Sen Pentest Uzmanısın. Hedef: '{target_domain}'.
     
-    GÖREVİN:
-    Bu çıktıları detaylıca analiz ederek profesyonel, teknik ve yönetici özetini içeren kapsamlı bir sızma testi raporu oluşturmak.
-    Her bir bulguyu önem derecesine göre sınıflandır ve çözüm önerileri sun.
+    GÖREV: Araç çıktılarını analiz et, Türkçe JSON rapor oluştur.
     
-    ÇIKTI FORMATI (KESİNLİKLE JSON OLMALI):
-    Cevabın SADECE geçerli bir JSON objesi olmalı. Markdown, ```json``` etiketi veya ek metin kullanma.
-    JSON yapısı bozulmamalıdır.
-    
-    JSON ŞEMASI:
+    ÇIKTI FORMATI (SADECE JSON):
     {{
         "domain": "{target_domain}",
-        "tarih": "{time.strftime('%d.%m.%Y')}",
         "analizler": [
             {{
-                "arac_adi": "Araç İsmi (Örn: Nmap, Nikto)",
-                "risk_seviyesi": "KRITIK | YÜKSEK | ORTA | DÜŞÜK | BILGI | ARAÇ HATASI",
-                "ozet": "Bulguların kısa ve anlaşılır teknik özeti.",
-                "bulgular": [
-                    "Teknik bulgu 1 (Port, Servis, Zafiyet vb.)",
-                    "Teknik bulgu 2"
-                ],
-                "oneriler": [
-                    "Çözüm önerisi 1",
-                    "Çözüm önerisi 2"
-                ]
+                "arac_adi": "Araç Adı",
+                "risk_seviyesi": "KRITIK|YÜKSEK|ORTA|DÜŞÜK|BILGI",
+                "ozet": "Teknik özet",
+                "bulgular": ["Bulgu 1"],
+                "oneriler": ["Öneri 1"]
             }}
         ]
     }}
-
-    KURALLAR:
-    1. Eğer bir araç hata verdiyse (Örn: 'Failed to resolve', 'Connection refused'), risk_seviyesi'ni 'ARAÇ HATASI' veya 'BILGI' yap ve hatayı özetle.
-    2. Dil Türkçe olmalı ve profesyonel bir üslup kullanılmalı.
-    3. Bulgular teknik, net ve doğrulanabilir olmalı.
-    4. Gereksiz veya boş çıktıları rapora dahil etme.
     
-    --- ARAÇ ÇIKTILARI ---
+    VERİLER:
     {tool_outputs}
     """
 
     try:
         genai.configure(api_key=api_key)
-        # SENİN İSTEDİĞİN MODEL SÜRÜMÜ
-        model = genai.GenerativeModel('gemini-2.5-pro') 
-        
-        print(f"[*] Gemini analizi başlatılıyor (Model: gemini-2.5-pro)...")
+        model = genai.GenerativeModel('gemini-2.5-pro')
         response = model.generate_content(prompt)
         
-        # JSON Temizliği (Markdown temizleme)
-        raw_text = response.text.strip()
-        if raw_text.startswith("```json"):
-            raw_text = raw_text[7:]
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
+        raw_text = response.text.strip().replace("```json", "").replace("```", "")
+        report_json = json.loads(raw_text)
         
-        report_json = json.loads(raw_text.strip())
-        
-        # JSON'u Kaydet
+        # JSON'u diske kaydet ki PDF fonksiyonu bulabilsin
         json_path = os.path.join(scan_folder_path, "pentest_raporu.json")
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(report_json, f, ensure_ascii=False, indent=4)
             
-        print(f"[+] JSON Rapor başarıyla oluşturuldu: {json_path}")
         return json_path
-
     except Exception as e:
-        print(f"[-] AI Raporlama Hatası: {e}")
+        print(f"Rapor Hatası: {e}")
         return None
-
-# =============================================================================
-# BÖLÜM 2: PDF ÇIKTISI (GÖRSEL TASARIM)
-# =============================================================================
 
 class PDFReport(FPDF):
     def __init__(self, target_domain):
@@ -162,136 +97,73 @@ class PDFReport(FPDF):
         self.target_domain = target_domain
         self.set_auto_page_break(auto=True, margin=15)
         
-        # Font Yükleme
+        # Font varsa yükle, yoksa Helvetica (Türkçe karakterleri bozar ama çalışır)
+        self.use_unicode = False
         if check_and_download_font():
-            self.add_font(FONT_NAME, "", FONT_PATH, uni=True)
-            self.main_font = FONT_NAME
+            try:
+                self.add_font(FONT_NAME, "", FONT_PATH, uni=True)
+                self.main_font = FONT_NAME
+                self.use_unicode = True
+            except: self.main_font = "Helvetica"
         else:
-            self.main_font = "Arial"
+            self.main_font = "Helvetica"
+
+    def safe_text(self, text):
+        # Eğer Unicode font yoksa Türkçe karakterleri çevir
+        if self.use_unicode: return str(text)
+        replacements = {"ı":"i", "İ":"I", "ğ":"g", "Ğ":"G", "ü":"u", "Ü":"U", "ş":"s", "Ş":"S", "ö":"o", "Ö":"O", "ç":"c", "Ç":"C"}
+        text = str(text)
+        for k,v in replacements.items(): text = text.replace(k,v)
+        return text.encode('latin-1', 'replace').decode('latin-1')
 
     def header(self):
         self.set_font(self.main_font, "", 10)
-        self.set_text_color(100, 100, 100)
-        self.cell(0, 10, f"HydraScan - {self.target_domain}", ln=True, align="R")
+        self.set_text_color(100)
+        self.cell(0, 10, self.safe_text(f"HydraScan - {self.target_domain}"), ln=True, align="R")
         self.ln(5)
 
-    def footer(self):
-        self.set_y(-15)
-        self.set_font(self.main_font, "", 8)
-        self.set_text_color(128, 128, 128)
-        self.cell(0, 10, f"Sayfa {self.page_no()}", align="C")
-
-    def chapter_title(self, arac_adi, risk_level):
-        colors = {
-            "KRITIK": (220, 53, 69),   # Kırmızı
-            "CRITICAL": (220, 53, 69),
-            "YÜKSEK": (253, 126, 20),  # Turuncu
-            "HIGH": (253, 126, 20),
-            "ORTA": (255, 193, 7),     # Sarı
-            "MEDIUM": (255, 193, 7),
-            "DÜŞÜK": (40, 167, 69),    # Yeşil
-            "LOW": (40, 167, 69),
-            "BILGI": (23, 162, 184),   # Mavi
-            "INFO": (23, 162, 184),
-            "ARAÇ HATASI": (108, 117, 125) # Gri
-        }
-        
-        # Risk seviyesini standartlaştır
-        risk_key = risk_level.upper().replace("İ", "I").replace("ı", "I")
-        r, g, b = (108, 117, 125) # Varsayılan gri
-        
+    def chapter_title(self, label, risk):
+        colors = {"KRITIK": (220,53,69), "YÜKSEK": (253,126,20), "ORTA": (255,193,7)}
+        r,g,b = (100,100,100)
         for k, v in colors.items():
-            if k in risk_key:
-                r, g, b = v
-                break
-
-        self.set_font(self.main_font, "", 14)
-        self.set_fill_color(r, g, b)
-        self.set_text_color(255, 255, 255)
+            if k in risk.upper(): r,g,b = v; break
         
-        title_text = f" {arac_adi} - Risk: {risk_level} "
-        self.cell(0, 10, title_text, ln=True, fill=True)
+        self.set_font(self.main_font, "", 14)
+        self.set_fill_color(r,g,b); self.set_text_color(255)
+        self.cell(0, 10, self.safe_text(f" {label} ({risk}) "), ln=True, fill=True)
         self.ln(4)
-        self.set_text_color(0, 0, 0)
+        self.set_text_color(0)
 
     def chapter_body(self, text):
         self.set_font(self.main_font, "", 11)
-        self.multi_cell(0, 6, text)
+        # Genişliği elle ayarla (190mm sayfa genişliği - marginler)
+        self.multi_cell(180, 6, self.safe_text(text))
         self.ln()
 
-    def add_list_item(self, text):
-        self.set_font(self.main_font, "", 11)
-        self.cell(5) # Girinti
-        self.cell(5, 6, "-", align="R") # Bullet
-        self.multi_cell(0, 6, text)
-        self.ln(1)
-
 def export_to_pdf(json_path, output_path=None):
-    """
-    JSON dosyasını okur ve PDF oluşturur.
-    DÜZELTME: output_path parametresi eklendi. (TypeError çözümü)
-    """
-    if not os.path.exists(json_path):
-        print(f"[-] JSON dosyası bulunamadı: {json_path}")
-        return None
-
+    if not os.path.exists(json_path): return None
     try:
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-
-        target = data.get("domain", "Bilinmeyen Hedef")
-        analizler = data.get("analizler", [])
+        with open(json_path, 'r', encoding='utf-8') as f: data = json.load(f)
         
-        pdf = PDFReport(target)
+        pdf = PDFReport(data.get("domain", "Hedef"))
         pdf.add_page()
         
-        # Kapak Sayfası
-        pdf.ln(60)
         pdf.set_font(pdf.main_font, "", 24)
-        pdf.cell(0, 10, "Sızma Testi Raporu", ln=True, align="C")
-        pdf.set_font(pdf.main_font, "", 16)
-        pdf.ln(10)
-        pdf.cell(0, 10, target, ln=True, align="C")
-        pdf.ln(20)
-        pdf.set_font(pdf.main_font, "", 12)
-        pdf.cell(0, 10, f"Tarih: {time.strftime('%d.%m.%Y')}", ln=True, align="C")
-        pdf.add_page()
-
-        # İçerik Sayfaları
-        for analiz in analizler:
-            arac = analiz.get("arac_adi", "Bilinmeyen")
-            risk = analiz.get("risk_seviyesi", "Bilgi")
-            ozet = analiz.get("ozet", "")
-            
-            pdf.chapter_title(arac, risk)
-            
-            pdf.set_font(pdf.main_font, "", 12)
-            pdf.cell(0, 8, "Özet:", ln=True)
-            pdf.chapter_body(ozet)
-            
-            if analiz.get("bulgular"):
-                pdf.set_font(pdf.main_font, "", 12)
-                pdf.cell(0, 8, "Teknik Bulgular:", ln=True)
-                for b in analiz["bulgular"]:
-                    pdf.add_list_item(str(b))
-                pdf.ln(2)
-
-            if analiz.get("oneriler"):
-                pdf.set_font(pdf.main_font, "", 12)
-                pdf.cell(0, 8, "Öneriler:", ln=True)
-                for o in analiz["oneriler"]:
-                    pdf.add_list_item(str(o))
-            
-            pdf.ln(5)
-
-        # Eğer hedef yol belirtilmediyse varsayılan oluştur
-        if not output_path:
-            output_path = json_path.replace(".json", ".pdf")
-            
+        pdf.cell(0, 20, pdf.safe_text("Sızma Testi Raporu"), ln=True, align="C"); pdf.ln(10)
+        
+        for a in data.get("analizler", []):
+            pdf.chapter_title(a.get("arac_adi", ""), a.get("risk_seviyesi", ""))
+            pdf.chapter_body(a.get("ozet", ""))
+            if a.get("bulgular"):
+                pdf.set_font(pdf.main_font, "", 10)
+                for b in a["bulgular"]:
+                    pdf.cell(5)
+                    pdf.multi_cell(175, 5, self.safe_text(f"- {b}")) # Genişlik ayarı
+                pdf.ln(5)
+                
+        if not output_path: output_path = json_path.replace(".json", ".pdf")
         pdf.output(output_path)
-        print(f"[+] PDF Rapor oluşturuldu: {output_path}")
         return output_path
-
     except Exception as e:
-        print(f"[-] PDF Oluşturma Hatası: {e}")
+        print(f"PDF Hatası: {e}")
         return None

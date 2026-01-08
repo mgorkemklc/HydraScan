@@ -893,11 +893,15 @@ class HydraScanApp(ctk.CTk):
         self.btn_update_docker.pack(anchor="w", padx=40, pady=10)
 
     def toggle_theme(self):
+        # 1. Modu Belirle
         mode = "Light" if self.theme_switch.get() else "Dark"
+        # 2. Görünümü Uygula
         ctk.set_appearance_mode(mode)
+        # 3. Ayarı Belleğe Kaydet
         self.config["theme"] = mode
-        self.save_config()  # BU SATIR EKSİKTİ, EKLENDİ.
-
+        # 4. Dosyaya Yaz (BU SATIR EKSİKTİ, EKLENDİ)
+        self.save_config()
+        
     def save_settings(self):
         self.config["api_key"] = self.set_api.get()
         self.config["webhook_url"] = self.set_webhook.get() # EKLENDİ
