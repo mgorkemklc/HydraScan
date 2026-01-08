@@ -1,0 +1,28 @@
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-01-08 12:11 +0000
+Nmap scan report for testphp.vulnweb.com (44.228.249.3)
+Host is up (0.043s latency).
+rDNS record for 44.228.249.3: ec2-44-228-249-3.us-west-2.compute.amazonaws.com
+Not shown: 99 filtered tcp ports (no-response)
+Some closed ports may be reported as filtered due to --defeat-rst-ratelimit
+PORT   STATE SERVICE VERSION
+80/tcp open  http    nginx/1.19.0
+1 service unrecognized despite returning data. If you know the service/version, please submit the following fingerprint at https://nmap.org/cgi-bin/submit.cgi?new-service :
+SF-Port80-TCP:V=7.98%I=7%D=1/8%Time=695F9EFC%P=x86_64-pc-linux-gnu%r(RTSPR
+SF:equest,9D,"<html>\r\n<head><title>400\x20Bad\x20Request</title></head>\
+SF:r\n<body>\r\n<center><h1>400\x20Bad\x20Request</h1></center>\r\n<hr><ce
+SF:nter>nginx/1\.19\.0</center>\r\n</body>\r\n</html>\r\n")%r(X11Probe,135
+SF:,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nServer:\x20nginx/1\.19\.0\r\nDa
+SF:te:\x20Thu,\x2008\x20Jan\x202026\x2012:11:39\x20GMT\r\nContent-Type:\x2
+SF:0text/html\r\nContent-Length:\x20157\r\nConnection:\x20close\r\n\r\n<ht
+SF:ml>\r\n<head><title>400\x20Bad\x20Request</title></head>\r\n<body>\r\n<
+SF:center><h1>400\x20Bad\x20Request</h1></center>\r\n<hr><center>nginx/1\.
+SF:19\.0</center>\r\n</body>\r\n</html>\r\n")%r(RPCCheck,135,"HTTP/1\.1\x2
+SF:0400\x20Bad\x20Request\r\nServer:\x20nginx/1\.19\.0\r\nDate:\x20Thu,\x2
+SF:008\x20Jan\x202026\x2012:11:44\x20GMT\r\nContent-Type:\x20text/html\r\n
+SF:Content-Length:\x20157\r\nConnection:\x20close\r\n\r\n<html>\r\n<head><
+SF:title>400\x20Bad\x20Request</title></head>\r\n<body>\r\n<center><h1>400
+SF:\x20Bad\x20Request</h1></center>\r\n<hr><center>nginx/1\.19\.0</center>
+SF:\r\n</body>\r\n</html>\r\n");
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 28.99 seconds

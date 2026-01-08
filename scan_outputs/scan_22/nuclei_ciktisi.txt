@@ -1,0 +1,24 @@
+
+                     __     _
+   ____  __  _______/ /__  (_)
+  / __ \/ / / / ___/ / _ \/ /
+ / / / / /_/ / /__/ /  __/ /
+/_/ /_/\__,_/\___/_/\___/_/   v3.3.6
+
+		projectdiscovery.io
+
+[[34mINF[0m] nuclei-templates are not installed, installing...
+[[34mINF[0m] Successfully installed nuclei-templates at /root/nuclei-templates
+[[31mWRN[0m] Found 1 templates with syntax error (use -validate flag for further examination)
+[[31mWRN[0m] Found 2 templates with runtime error (use -validate flag for further examination)
+[[34mINF[0m] Current nuclei version: v3.3.6 ([91moutdated[0m)
+[[34mINF[0m] Current nuclei-templates version: v10.3.6 ([92mlatest[0m)
+[[93mWRN[0m] Scan results upload to cloud is disabled.
+[[34mINF[0m] New templates added in latest release: 176
+[[34mINF[0m] Templates loaded for current scan: 3685
+[[34mINF[0m] Executing 3685 signed templates from projectdiscovery/nuclei-templates
+[[34mINF[0m] Targets loaded for current scan: 1
+[[34mINF[0m] Templates clustered: 254 (Reduced 219 Requests)
+[[34mINF[0m] Using Interactsh Server: oast.site
+[[34mINF[0m] Skipped mgorkemkilic.com:80 from target list as found unresponsive 30 times
+[[34mINF[0m] No results found. Better luck next time!

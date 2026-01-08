@@ -1,0 +1,21 @@
+
+; <<>> DiG 9.20.15-2-Debian <<>> testphp.vulnweb.com ANY
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 2982
+;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 512
+;; QUESTION SECTION:
+;testphp.vulnweb.com.		IN	ANY
+
+;; ANSWER SECTION:
+testphp.vulnweb.com.	10800	IN	A	44.228.249.3
+testphp.vulnweb.com.	10800	IN	TXT	"google-site-verification:toEctYsulNIxgraKk7H3z58PCyz2IOCc36pIupEPmYQ"
+
+;; Query time: 64 msec
+;; SERVER: 8.8.8.8#53(8.8.8.8) (TCP)
+;; WHEN: Thu Jan 08 12:11:26 UTC 2026
+;; MSG SIZE  rcvd: 145
+

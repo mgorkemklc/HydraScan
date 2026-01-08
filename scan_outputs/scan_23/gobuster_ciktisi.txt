@@ -1,0 +1,1 @@
+2026/01/08 12:10:33 the server returns a status code that matches the provided options for non existing urls. http://testphp.vulnweb.com/cb6424fa-b2ca-45fd-aed1-c9d242a76422 => 404 (Length: 153). Please exclude the response length or the status code or set the wildcard option.. To continue please exclude the status code or the length

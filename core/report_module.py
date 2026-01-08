@@ -11,11 +11,10 @@ FONTS_DIR = os.path.join(os.getcwd(), "assets", "fonts")
 FONT_NAME = "DejaVuSans"
 FONT_PATH = os.path.join(FONTS_DIR, "DejaVuSans.ttf")
 FONT_URL_1 = "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf"
-FONT_URL_2 = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
 
-# RAPORDA GÖRÜNMESİNİ İSTEDİĞİN TÜM ARAÇLARIN LİSTESİ
+# RAPORDA GÖRÜNMESİ İSTENEN TÜM ARAÇLAR
 ALL_TOOLS_LIST = [
-    "whois", "subfinder", "amass", "dig", "nmap",       # Keşif
+    "whois", "subfinder", "amass", "dig", "nmap",       # Recon
     "gobuster", "nikto", "nuclei", "sqlmap", "dalfox",  # Web 1
     "commix", "wapiti", "hydra",                        # Web 2
     "apkleaks", "apktool"                               # Mobil
@@ -29,42 +28,38 @@ def check_and_download_font():
     if os.path.exists(FONT_PATH) and os.path.getsize(FONT_PATH) > 50000:
         return True
         
-    print(f"[*] Font indiriliyor...")
     try:
-        r = requests.get(FONT_URL_1, timeout=15)
+        r = requests.get(FONT_URL_1, timeout=10)
         if r.status_code == 200:
             with open(FONT_PATH, 'wb') as f: f.write(r.content)
             return True
     except: pass
     return False
 
-# --- OKUMA FONKSİYONU (GÜNCELLENDİ) ---
 def read_tool_outputs(scan_folder):
     combined_output = ""
     
-    # Sadece var olanları değil, LİSTEDEKİ TÜM ARAÇLARI kontrol et
+    # Her aracı tek tek kontrol et
     for tool in ALL_TOOLS_LIST:
-        # Olası dosya adlarını kontrol et (tool_ciktisi.txt veya tool_analizi.txt)
+        # Dosya adı varyasyonları
         file_path = os.path.join(scan_folder, f"{tool}_ciktisi.txt")
         if not os.path.exists(file_path):
-             file_path = os.path.join(scan_folder, f"{tool}_analizi.txt")
+             file_path = os.path.join(scan_folder, f"{tool}_analizi.txt") # Responder vb. için
         
-        header = f"\n\n{'='*40}\n=== {tool.upper()} DURUMU ===\n{'='*40}\n"
+        header = f"\n\n{'='*40}\n=== {tool.upper()} SONUCU ===\n{'='*40}\n"
         
         if os.path.exists(file_path):
             try:
                 with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                     content = f.read().strip()
                     if content:
-                        # İçerik çok uzunsa kısalt
                         combined_output += f"{header}{content[:8000]}\n"
                     else:
-                        combined_output += f"{header}[DURUM] Dosya oluşturuldu ancak içi boş (Hata veya bulgu yok).\n"
-            except Exception as e:
-                combined_output += f"{header}[HATA] Dosya okuma hatası: {e}\n"
+                        combined_output += f"{header}[DURUM] Araç çalıştı ancak çıktı dosyası boş.\n"
+            except:
+                combined_output += f"{header}[HATA] Dosya okunamadı.\n"
         else:
-            # Dosya yoksa bile rapora ekle ki kullanıcı görsün
-            combined_output += f"{header}[BİLGİ] Bu araç çalıştırılmadı, atlandı veya çıktı dosyası oluşturamadı.\n"
+            combined_output += f"{header}[BILGI] Bu araç bu taramada çalıştırılmadı veya devre dışı bırakıldı.\n"
             
     return combined_output
 
@@ -72,31 +67,30 @@ def generate_report(scan_folder_path, target_domain, api_key, stream_callback=No
     if stream_callback: stream_callback("\n[INFO] Raporlama Modülü Başlatıldı.\n")
     if not api_key or not os.path.exists(scan_folder_path): return None
 
-    if stream_callback: stream_callback("[*] Tüm araçların çıktıları (boş olanlar dahil) toplanıyor...\n")
-    
+    if stream_callback: stream_callback("[*] Tüm araçların verileri toplanıyor...\n")
     tool_outputs = read_tool_outputs(scan_folder_path)
     
-    # --- PROMPT GÜNCELLENDİ: HATA VERENLERİ DE YAZ ---
+    # Prompt: Hata verenleri de rapora ekle talimatı
     prompt = f"""
     Sen Pentest Uzmanısın. Hedef: '{target_domain}'.
     
-    GÖREV: Aşağıda verilen tüm araç çıktılarını analiz et.
+    GÖREV: Verilen tüm araç çıktılarını analiz et.
     
-    ÖNEMLİ KURALLAR:
-    1. Listede adı geçen HER BİR ARAÇ için mutlaka bir JSON objesi oluştur.
-    2. Eğer araç çıktısında "çalıştırılmadı", "atlandı" veya "dosya yok" yazıyorsa: Risk Seviyesini "BİLGİ" yap ve özet kısmına "Araç çalıştırılmadı." yaz.
-    3. Eğer araç hata verdiyse (Connection refused, Flag error vb.): Risk Seviyesini "ARAÇ HATASI" yap ve hatayı özete yaz.
-    4. Sadece başarılı olanları değil, TÜM araçları listele.
+    KURALLAR:
+    1. Listede gördüğün HER ARAÇ için JSON'da bir kayıt oluştur.
+    2. Eğer çıktı "çalıştırılmadı" veya "boş" diyorsa: Risk "BILGI", Özet "Araç çalıştırılmadı/Sonuç yok" yaz.
+    3. Eğer çıktı hata içeriyorsa (Error, Failed vb.): Risk "ARAÇ HATASI", Özet "Araç teknik hata verdi." yaz.
+    4. Başarılı araçları normal şekilde analiz et.
     
     ÇIKTI FORMATI (JSON):
     {{
         "domain": "{target_domain}",
         "analizler": [
             {{
-                "arac_adi": "ARAÇ ADI (Örn: Nmap, Hydra)",
+                "arac_adi": "Araç Adı",
                 "risk_seviyesi": "KRITIK | YÜKSEK | ORTA | DÜŞÜK | BILGI | ARAÇ HATASI",
                 "ozet": "Durum özeti",
-                "bulgular": ["Bulgu 1", "Bulgu 2"],
+                "bulgular": ["Bulgu 1"],
                 "oneriler": ["Öneri 1"]
             }}
         ]
@@ -107,7 +101,7 @@ def generate_report(scan_folder_path, target_domain, api_key, stream_callback=No
     """
 
     try:
-        if stream_callback: stream_callback("[*] Gemini 2.5 Pro analiz ediyor...\n")
+        if stream_callback: stream_callback("[*] Gemini 2.5 Pro analiz ediyor (Bekleyiniz)...\n")
         
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.5-pro')
@@ -120,15 +114,15 @@ def generate_report(scan_folder_path, target_domain, api_key, stream_callback=No
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(report_json, f, ensure_ascii=False, indent=4)
             
-        if stream_callback: stream_callback(f"[+] Rapor oluşturuldu.\n")
+        if stream_callback: stream_callback(f"[+] JSON Rapor oluşturuldu.\n")
         return json_path
 
     except Exception as e:
-        print(f"Rapor Hatası: {e}")
         if stream_callback: stream_callback(f"[-] Rapor Hatası: {e}\n")
+        print(f"Rapor Hatası: {e}")
         return None
 
-# --- PDF KISMI ---
+# --- PDF ---
 class PDFReport(FPDF):
     def __init__(self, target_domain):
         super().__init__()
@@ -162,7 +156,6 @@ class PDFReport(FPDF):
         r,g,b = (100,100,100)
         for k, v in colors.items():
             if k in risk.upper(): r,g,b = v; break
-            
         self.set_font(self.main_font, "", 14)
         self.set_fill_color(r,g,b); self.set_text_color(255)
         self.cell(0, 10, self.safe_text(f" {label} ({risk}) "), ln=True, fill=True); self.ln(4)

@@ -10,10 +10,10 @@ def ensure_http(target):
     return target
 
 def is_port_open(domain, port):
-    """Hedef portun açık olup olmadığını kontrol eder (Boşa zaman kaybını önler)."""
+    """Port kontrolü yapar, kapalıysa aracı boşuna çalıştırmaz."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
+        sock.settimeout(3)
         result = sock.connect_ex((domain, port))
         sock.close()
         return result == 0
@@ -25,11 +25,10 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[], strea
     if stream_callback: stream_callback("\n=== [3. WEB ZAFİYET MODÜLÜ] ===\n")
 
     target_url = ensure_http(domain_input)
-    # Domain adını ayıkla (http/https olmadan)
     domain_only = target_url.replace("http://", "").replace("https://", "").split("/")[0]
 
     # Wordlist Ayarı
-    wordlist_path_in_docker = "/usr/share/wordlists/dirb/common.txt" 
+    wordlist_path_in_docker = "/usr/share/wordlists/dirb/common.txt"
     extra_docker_args = []
     
     if custom_wordlist and os.path.exists(custom_wordlist):
@@ -41,12 +40,11 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[], strea
 
     commands = {}
 
-    # --- DÜZELTİLMİŞ VE LOGLARA GÖRE OPTİMİZE EDİLMİŞ KOMUTLAR ---
+    # --- DÜZELTİLMİŞ KOMUTLAR ---
 
     if "gobuster" in selected_tools:
-        # LOG HATASI: "flag provided but not defined: -wildcard"
-        # ÇÖZÜM: -wildcard kaldırıldı.
-        commands["gobuster_ciktisi.txt"] = f"gobuster dir -u {target_url} -w {wordlist_path_in_docker} -q -b 301,302 --no-error --timeout 10s"
+        # DÜZELTME: -wildcard silindi, -k eklendi (SSL hatasını önler)
+        commands["gobuster_ciktisi.txt"] = f"gobuster dir -u {target_url} -w {wordlist_path_in_docker} -q -b 301,302 -k --timeout 10s"
 
     if "nikto" in selected_tools:
         commands["nikto_ciktisi.txt"] = f"nikto -h {target_url} -maxtime 10m"
@@ -55,34 +53,29 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[], strea
         commands["nuclei_ciktisi.txt"] = f"nuclei -u {target_url} -severity critical,high -timeout 5"
 
     if "sqlmap" in selected_tools:
-        # LOG HATASI: "Connection refused" (IP Ban yemiş)
-        # ÇÖZÜM: --delay 2 (Hızı düşür) ve --random-agent
+        # DÜZELTME: --delay 2 ve --random-agent (Banlanmayı zorlaştırır)
         commands["sqlmap_ciktisi.txt"] = f"sqlmap -u \"{target_url}\" --batch --random-agent --level=1 --delay=2 --timeout=15"
 
     if "dalfox" in selected_tools:
         commands["dalfox_ciktisi.txt"] = f"dalfox url \"{target_url}\" --format plain --timeout 10"
 
     if "commix" in selected_tools:
-        # LOG HATASI: "Error: Type '-h' for Help !"
-        # ÇÖZÜM: Parametreleri en basite indirgedik.
+        # DÜZELTME: Hata veren --crawl parametresi silindi.
         commands["commix_ciktisi.txt"] = f"commix -u {target_url} --batch --level=1 --disable-coloring"
 
     if "wapiti" in selected_tools:
-        # Bu araç loglarda başarılı (124 exit code = timeout başarısı)
-        # Aynen bırakıyoruz.
+        # Timeout koruması
         commands["wapiti_ciktisi.txt"] = f"timeout 10m wapiti -u {target_url} --flush-session -v 1 --max-scan-time 600 --depth 2 --scope folder"
     
     if "hydra" in selected_tools:
-        # LOG HATASI: "Connection refused" (Port kapalı)
-        # ÇÖZÜM: Ön kontrol ekledik. Kapalıysa hiç çalıştırmayacak.
+        # DÜZELTME: Port 22 kapalıysa hiç çalıştırma
         if is_port_open(domain_only, 22):
             commands["hydra_ciktisi.txt"] = f"hydra -l admin -P /usr/share/wordlists/rockyou.txt ssh://{domain_only} -t 4 -I -f -W 1"
         else:
-            msg = f"[-] Hydra atlandı: {domain_only}:22 kapalı (Zaman kazanıldı).\n"
+            msg = f"[-] Hydra atlandı: {domain_only} üzerinde SSH portu (22) kapalı.\n"
             logging.info(msg)
             if stream_callback: stream_callback(msg)
 
-    # Komutları Çalıştır
     for output_filename, command in commands.items():
         output_file_path = os.path.join(output_dir, output_filename)
         tool_name = output_filename.split('_')[0].upper()

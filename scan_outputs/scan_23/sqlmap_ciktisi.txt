@@ -1,0 +1,30 @@
+        ___
+       __H__
+ ___ ___[.]_____ ___ ___  {1.9.12#stable}
+|_ -| . [']     | .'| . |
+|___|_  [.]_|_|_|__,|  _|
+      |_|V...       |_|   https://sqlmap.org
+
+[!] legal disclaimer: Usage of sqlmap for attacking targets without prior mutual consent is illegal. It is the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program
+
+[*] starting @ 12:12:09 /2026-01-08/
+
+[12:12:09] [INFO] fetched random HTTP User-Agent header value 'Mozilla/5.0 (X11; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0' from file '/usr/share/sqlmap/data/txt/user-agents.txt'
+[1/1] URL:
+GET http://testphp.vulnweb.com/
+do you want to test this URL? [Y/n/q]
+> Y
+[12:12:09] [INFO] testing URL 'http://testphp.vulnweb.com/'
+[12:12:09] [INFO] using '/root/.local/share/sqlmap/output/results-01082026_1212pm.csv' as the CSV results file in multiple targets mode
+[12:12:09] [INFO] testing connection to the target URL
+[12:12:24] [CRITICAL] connection timed out to the target URL. sqlmap is going to retry the request(s)
+[12:12:24] [WARNING] if the problem persists please check that the provided target URL is reachable. In case that it is, you can try to rerun with proxy switches ('--proxy', '--proxy-file'...)
+[12:12:27] [INFO] testing if the target URL content is stable
+[12:12:29] [WARNING] target URL content is not stable (i.e. content differs). sqlmap will base the page comparison on a sequence matcher. If no dynamic nor injectable parameters are detected, or in case of junk results, refer to user's manual paragraph 'Page comparison'
+how do you want to proceed? [(C)ontinue/(s)tring/(r)egex/(q)uit] C
+[12:12:29] [CRITICAL] can't check dynamic content because of lack of page content
+[12:12:29] [ERROR] all tested parameters do not appear to be injectable. Try to increase values for '--level'/'--risk' options if you wish to perform more tests. If you suspect that there is some kind of protection mechanism involved (e.g. WAF) maybe you could try to use option '--tamper' (e.g. '--tamper=space2comment'), skipping to the next target
+[12:12:29] [INFO] you can find results of scanning in multiple targets mode inside the CSV file '/root/.local/share/sqlmap/output/results-01082026_1212pm.csv'
+
+[*] ending @ 12:12:29 /2026-01-08/
+
