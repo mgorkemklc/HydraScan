@@ -1,0 +1,36 @@
+[95m     _    ____  _  ___               _        
+    / \  |  _ \| |/ / |    ___  __ _| | _____ 
+   / _ \ | |_) | ' /| |   / _ \/ _` | |/ / __|
+  / ___ \|  __/| . \| |__|  __/ (_| |   <\__ \
+ /_/   \_\_|   |_|\_\_____\___|\__,_|_|\_\___/
+ v2.6.3
+ --
+ Scanning APK file for URIs, endpoints & secrets
+ (c) 2020-2024, dwisiswant0
+[0m
+INFO  - loading ...
+INFO  - processing ...
+INFO  - progress: 0 of 718 (0%)
+INFO  - progress: 387 of 718 (53%)
+INFO  - progress: 397 of 718 (55%)
+INFO  - progress: 476 of 718 (66%)
+INFO  - progress: 543 of 718 (75%)
+INFO  - progress: 582 of 718 (81%)
+INFO  - progress: 622 of 718 (86%)
+INFO  - progress: 662 of 718 (92%)
+INFO  - progress: 683 of 718 (95%)
+INFO  - progress: 711 of 718 (99%)
+                                                             
+INFO  - done
+[94m** Decompiling APK...
+[0m[94m
+** Scanning against 'jakhar.aseem.diva'
+[0m[92m
+[LinkFinder]
+[0m- /.uinfo.txt
+- activity_choser_model_history.xml
+- content://jakhar.aseem.diva.provider.notesprovider/notes
+- http://schemas.android.com/apk/res/android
+- share_history.xml
+[95m
+** Results saved into '[0m[92m/tmp/apkleaks-a087ekpy.txt[95m'[0m.

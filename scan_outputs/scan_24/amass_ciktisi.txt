@@ -1,0 +1,5 @@
+www.testphp.vulnweb.com
+testphp.vulnweb.com
+
+The enumeration has finished
+Discoveries are being migrated into the local database

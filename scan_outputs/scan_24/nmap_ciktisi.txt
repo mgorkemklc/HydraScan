@@ -1,0 +1,11 @@
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-01-08 14:12 +0000
+Nmap scan report for testphp.vulnweb.com (44.228.249.3)
+Host is up (0.044s latency).
+rDNS record for 44.228.249.3: ec2-44-228-249-3.us-west-2.compute.amazonaws.com
+Not shown: 99 filtered tcp ports (no-response)
+Some closed ports may be reported as filtered due to --defeat-rst-ratelimit
+PORT   STATE SERVICE VERSION
+80/tcp open  http?
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 24.08 seconds
