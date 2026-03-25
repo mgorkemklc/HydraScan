@@ -14,10 +14,35 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # 1. ŞİRKETLER (TENANTS) TABLOSU
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS companies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        created_at DATETIME
+    );
+    """)
+
+    # 2. KULLANICILAR TABLOSU (Rol ve Şirket ID Eklendi)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'Musteri', -- Rol: Superadmin, Admin, Pentester, Musteri
+        company_id INTEGER,                   -- Hangi şirkete/tenant'a bağlı olduğu
+        created_at DATETIME,
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+    );
+    """)
+
+    # 3. TARAMALAR TABLOSU (Şirket ve Müşteri İlişkisi Eklendi)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS scans (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
+        user_id INTEGER,             -- Taramayı başlatan personel (Pentester/Admin)
+        company_id INTEGER,          -- Taramayı yapan şirket
+        customer_id INTEGER,         -- Taramanın yapıldığı müşteri (Musteri rolündeki user_id)
         target_full_domain TEXT NOT NULL,
         internal_ip_range TEXT,
         apk_file_s3_path TEXT, 
@@ -25,26 +50,40 @@ def init_db():
         output_directory TEXT,
         report_file_path TEXT,
         created_at DATETIME NOT NULL,
-        completed_at DATETIME
-    );
-    """)
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        role TEXT DEFAULT 'user',
-        created_at DATETIME
+        completed_at DATETIME,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (company_id) REFERENCES companies(id),
+        FOREIGN KEY (customer_id) REFERENCES users(id)
     );
     """)
     
+    # --- VARSAYILAN (TEST) VERİLERİNİN OLUŞTURULMASI ---
     try:
-        admin_pass = hashlib.sha256("admin123".encode()).hexdigest()
+        now = datetime.datetime.now()
+        default_pass = hashlib.sha256("admin123".encode()).hexdigest()
+        
+        # Superadmin (Şirket bağımsız, en yetkili)
         cursor.execute("INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)", 
-                       ("admin", admin_pass, "admin", datetime.datetime.now()))
+                       ("superadmin", default_pass, "Superadmin", now))
+        
+        # Varsayılan bir Pentest Şirketi (Tenant)
+        cursor.execute("INSERT INTO companies (name, created_at) VALUES (?, ?)", ("Hydra Security Ltd.", now))
+        company_id = cursor.lastrowid
+        
+        # Şirket Yöneticisi (Admin)
+        cursor.execute("INSERT INTO users (username, password_hash, role, company_id, created_at) VALUES (?, ?, ?, ?, ?)", 
+                       ("admin", default_pass, "Admin", company_id, now))
+        
+        # Şirket Çalışanı (Pentester)
+        cursor.execute("INSERT INTO users (username, password_hash, role, company_id, created_at) VALUES (?, ?, ?, ?, ?)", 
+                       ("pentester", default_pass, "Pentester", company_id, now))
+                       
+        # Müşteri (Sadece kendi raporlarını görebilir)
+        cursor.execute("INSERT INTO users (username, password_hash, role, company_id, created_at) VALUES (?, ?, ?, ?, ?)", 
+                       ("musteri", default_pass, "Musteri", company_id, now))
+
     except sqlite3.IntegrityError:
-        pass
+        pass # Veriler zaten varsa geç
 
     conn.commit()
     conn.close()
@@ -57,15 +96,16 @@ def login_check(username, password):
     if user:
         input_hash = hashlib.sha256(password.encode()).hexdigest()
         if input_hash == user['password_hash']:
-            return user
+            # Dictionary gibi davranması için dict'e çeviriyoruz
+            return dict(user) 
     return None
 
-def register_user(username, password):
+def register_user(username, password, role="Musteri", company_id=None):
     conn = get_db_connection()
     pass_hash = hashlib.sha256(password.encode()).hexdigest()
     try:
-        conn.execute("INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)", 
-                     (username, pass_hash, datetime.datetime.now()))
+        conn.execute("INSERT INTO users (username, password_hash, role, company_id, created_at) VALUES (?, ?, ?, ?, ?)", 
+                     (username, pass_hash, role, company_id, datetime.datetime.now()))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -73,26 +113,22 @@ def register_user(username, password):
     finally:
         conn.close()
 
-def user_exists(username):
-    conn = get_db_connection()
-    exists = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone()
-    conn.close()
-    return exists is not None
-
 # --- TARAMA İŞLEMLERİ ---
-def create_scan(scan_data, user_id=None):
+def create_scan(scan_data, user_id, company_id=None, customer_id=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     now = datetime.datetime.now()
     
     cursor.execute("""
     INSERT INTO scans (
-        user_id, target_full_domain, internal_ip_range, apk_file_s3_path, 
+        user_id, company_id, customer_id, target_full_domain, internal_ip_range, apk_file_s3_path, 
         status, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         user_id,
-        scan_data['domain'],
+        company_id,
+        customer_id,
+        scan_data.get('domain', ''),
         scan_data.get('internal_ip'),
         scan_data.get('apk_path'),
         'PENDING',
@@ -103,25 +139,15 @@ def create_scan(scan_data, user_id=None):
     conn.close()
     return new_id
 
-# --- KRİTİK GÜNCELLEME BURADA ---
-def insert_imported_scan(user_id, domain, status, output_dir, report_path, created_at):
-    """
-    Dosya sisteminden bulunan taramaları veritabanına ekler veya günceller.
-    """
+def insert_imported_scan(user_id, domain, status, output_dir, report_path, created_at, company_id=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 1. Bu klasör yoluyla kayıtlı bir tarama var mı kontrol et
     check = cursor.execute("SELECT id, status FROM scans WHERE output_directory = ?", (output_dir,)).fetchone()
     
     if check:
-        # Kayıt VARSA
         scan_id = check['id']
         current_status = check['status']
-        
-        # Eğer veritabanında 'RUNNING' veya 'REPORTING' olarak kaldıysa, 
-        # ama biz elimizde bitmiş bir rapor dosyası (report_path) tutuyorsak:
-        # Durumu 'COMPLETED' olarak GÜNCELLE.
         if current_status != "COMPLETED" and report_path and os.path.exists(report_path):
             now = datetime.datetime.now()
             cursor.execute("""
@@ -130,29 +156,39 @@ def insert_imported_scan(user_id, domain, status, output_dir, report_path, creat
                 WHERE id = ?
             """, (report_path, now, scan_id))
             conn.commit()
-            print(f"[Database] Scan {scan_id} durumu 'COMPLETED' olarak güncellendi (Dosya bulundu).")
-            
         conn.close()
         return scan_id
 
-    # Kayıt YOKSA (Yeni ekle)
     cursor.execute("""
     INSERT INTO scans (
-        user_id, target_full_domain, status, output_directory, report_file_path, created_at, completed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, domain, status, output_dir, report_path, created_at, created_at))
+        user_id, company_id, target_full_domain, status, output_directory, report_file_path, created_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, company_id, domain, status, output_dir, report_path, created_at, created_at))
     
     new_id = cursor.lastrowid
     conn.commit()
     conn.close()
     return new_id
 
-def get_all_scans(user_id=None):
+# YETKİ KONTROLLÜ TARAMA GETİRME (RBAC)
+def get_all_scans(user):
     conn = get_db_connection()
-    if user_id:
-        rows = conn.execute("SELECT * FROM scans WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
-    else:
+    role = user['role']
+    user_id = user['id']
+    company_id = user['company_id']
+    
+    if role == "Superadmin":
+        # Superadmin tüm sistemdeki taramaları görür
         rows = conn.execute("SELECT * FROM scans ORDER BY created_at DESC").fetchall()
+    elif role in ["Admin", "Pentester"]:
+        # Admin ve Pentester sadece kendi şirketinin taramalarını görür
+        rows = conn.execute("SELECT * FROM scans WHERE company_id = ? ORDER BY created_at DESC", (company_id,)).fetchall()
+    elif role == "Musteri":
+        # Müşteri sadece kendisine atanmış taramaları görür
+        rows = conn.execute("SELECT * FROM scans WHERE customer_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
+    else:
+        rows = []
+        
     conn.close()
     return rows
 
@@ -160,7 +196,7 @@ def get_scan_by_id(scan_id):
     conn = get_db_connection()
     row = conn.execute("SELECT * FROM scans WHERE id = ?", (scan_id,)).fetchone()
     conn.close()
-    return row
+    return dict(row) if row else None
 
 def update_scan_status(scan_id, status):
     conn = get_db_connection()
@@ -187,5 +223,23 @@ def complete_scan(scan_id, report_path, status="COMPLETED"):
 def delete_scan_from_db(scan_id):
     conn = get_db_connection()
     conn.execute("DELETE FROM scans WHERE id = ?", (scan_id,))
+    conn.commit()
+    conn.close()
+
+# --- KULLANICI YÖNETİMİ (SUPERADMIN İÇİN) ---
+def get_all_users():
+    conn = get_db_connection()
+    # Kullanıcıları ve bağlı oldukları şirket isimlerini getir
+    rows = conn.execute("""
+        SELECT u.id, u.username, u.role, c.name as company_name 
+        FROM users u 
+        LEFT JOIN companies c ON u.company_id = c.id
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def delete_user(user_id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()
     conn.close()
