@@ -1,13 +1,14 @@
-Starting Nmap 7.98 ( https://nmap.org ) at 2026-01-08 08:04 +0000
-Nmap scan report for www.mgorkemkilic.com (34.120.137.41)
-Host is up (0.0084s latency).
-Other addresses for www.mgorkemkilic.com (not scanned): 2600:1901:0:84ef::
-rDNS record for 34.120.137.41: 41.137.120.34.bc.googleusercontent.com
-Not shown: 98 filtered tcp ports (no-response)
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-03-26 08:22 +0000
+Nmap scan report for www.yusuferengerek.com (188.114.97.7)
+Host is up (0.030s latency).
+Other addresses for www.yusuferengerek.com (not scanned): 188.114.96.7 2a06:98c1:3121::7 2a06:98c1:3120::7
+Not shown: 96 filtered tcp ports (no-response)
 Some closed ports may be reported as filtered due to --defeat-rst-ratelimit
-PORT    STATE SERVICE   VERSION
-80/tcp  open  http      OpenResty web app server
-443/tcp open  ssl/https openresty
+PORT     STATE SERVICE  VERSION
+80/tcp   open  http     Cloudflare http proxy
+443/tcp  open  ssl/http Cloudflare http proxy
+8080/tcp open  http     Cloudflare http proxy
+8443/tcp open  ssl/http Cloudflare http proxy
 
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
-Nmap done: 1 IP address (1 host up) scanned in 14.96 seconds
+Nmap done: 1 IP address (1 host up) scanned in 17.46 seconds
