@@ -1,191 +1,91 @@
 import os
-import json
-import glob
-import time
-import requests
-import google.generativeai as genai
-from fpdf import FPDF
+import io
+import datetime
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+import matplotlib.pyplot as plt
 
-# --- AYARLAR ---
-FONTS_DIR = os.path.join(os.getcwd(), "assets", "fonts")
-FONT_NAME = "DejaVuSans"
-FONT_PATH = os.path.join(FONTS_DIR, "DejaVuSans.ttf")
-FONT_URL_1 = "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf"
+def parse_findings(output_dir):
+    # Basit bir parser: Çıktı dosyalarındaki zafiyet seviyelerini sayar
+    severity_counts = {"Kritik": 0, "Yüksek": 0, "Orta": 0, "Düşük/Bilgi": 0}
+    findings = []
 
-# RAPORDA GÖRÜNMESİ İSTENEN TÜM ARAÇLAR
-ALL_TOOLS_LIST = [
-    "whois", "subfinder", "amass", "dig", "nmap",       # Recon
-    "gobuster", "nikto", "nuclei", "sqlmap", "dalfox",  # Web 1
-    "commix", "wapiti", "hydra",                        # Web 2
-    "apkleaks", "apktool"                               # Mobil
-]
+    nuclei_file = os.path.join(output_dir, "nuclei_ciktisi.txt")
+    if os.path.exists(nuclei_file):
+        with open(nuclei_file, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                if "[critical]" in line.lower(): severity_counts["Kritik"] += 1; findings.append(line.strip())
+                elif "[high]" in line.lower(): severity_counts["Yüksek"] += 1; findings.append(line.strip())
+                elif "[medium]" in line.lower(): severity_counts["Orta"] += 1; findings.append(line.strip())
+                elif "[low]" in line.lower() or "[info]" in line.lower(): severity_counts["Düşük/Bilgi"] += 1
 
-def check_and_download_font():
-    if not os.path.exists(FONTS_DIR):
-        try: os.makedirs(FONTS_DIR)
-        except OSError: pass
+    return severity_counts, findings
+
+def generate_pie_chart(severity_counts):
+    labels = list(severity_counts.keys())
+    sizes = list(severity_counts.values())
+    colors_list = ['#ff0000', '#ff9900', '#ffff00', '#33cc33'] # Kırmızı, Turuncu, Sarı, Yeşil
     
-    if os.path.exists(FONT_PATH) and os.path.getsize(FONT_PATH) > 50000:
-        return True
-        
-    try:
-        r = requests.get(FONT_URL_1, timeout=10)
-        if r.status_code == 200:
-            with open(FONT_PATH, 'wb') as f: f.write(r.content)
-            return True
-    except: pass
-    return False
+    # Eğer hiç zafiyet yoksa boş grafik çizmesin
+    if sum(sizes) == 0:
+        sizes = [1]; labels = ["Zafiyet Bulunamadı"]; colors_list = ['#cccccc']
 
-def read_tool_outputs(scan_folder):
-    combined_output = ""
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.pie(sizes, labels=labels, colors=colors_list, autopct='%1.1f%%', startangle=140)
+    ax.axis('equal')
     
-    # Her aracı tek tek kontrol et
-    for tool in ALL_TOOLS_LIST:
-        # Dosya adı varyasyonları
-        file_path = os.path.join(scan_folder, f"{tool}_ciktisi.txt")
-        if not os.path.exists(file_path):
-             file_path = os.path.join(scan_folder, f"{tool}_analizi.txt") # Responder vb. için
-        
-        header = f"\n\n{'='*40}\n=== {tool.upper()} SONUCU ===\n{'='*40}\n"
-        
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read().strip()
-                    if content:
-                        combined_output += f"{header}{content[:8000]}\n"
-                    else:
-                        combined_output += f"{header}[DURUM] Araç çalıştı ancak çıktı dosyası boş.\n"
-            except:
-                combined_output += f"{header}[HATA] Dosya okunamadı.\n"
-        else:
-            combined_output += f"{header}[BILGI] Bu araç bu taramada çalıştırılmadı veya devre dışı bırakıldı.\n"
-            
-    return combined_output
+    img_data = io.BytesBytesIO() if hasattr(io, 'BytesIO') else io.BytesIO()
+    plt.savefig(img_data, format='png', bbox_inches='tight')
+    plt.close(fig)
+    img_data.seek(0)
+    return img_data
 
-def generate_report(scan_folder_path, target_domain, api_key, stream_callback=None):
-    if stream_callback: stream_callback("\n[INFO] Raporlama Modülü Başlatıldı.\n")
-    if not api_key or not os.path.exists(scan_folder_path): return None
-
-    if stream_callback: stream_callback("[*] Tüm araçların verileri toplanıyor...\n")
-    tool_outputs = read_tool_outputs(scan_folder_path)
+def generate_pdf_report(scan_id, target, output_dir):
+    report_path = os.path.join(output_dir, f"HydraScan_Report_ID{scan_id}.pdf")
     
-    # Prompt: Hata verenleri de rapora ekle talimatı
-    prompt = f"""
-    Sen Pentest Uzmanısın. Hedef: '{target_domain}'.
+    severity_counts, findings = parse_findings(output_dir)
+    chart_data = generate_pie_chart(severity_counts)
+
+    doc = SimpleDocTemplate(report_path, pagesize=A4)
+    styles = getSampleStyleSheet()
     
-    GÖREV: Verilen tüm araç çıktılarını analiz et.
+    # Özel Stiller
+    title_style = ParagraphStyle(name='TitleStyle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=24, alignment=1, spaceAfter=20)
+    h2_style = ParagraphStyle(name='H2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=16, spaceAfter=10, textColor=colors.HexColor("#1e293b"))
+    normal_style = styles['Normal']
+
+    story = []
     
-    KURALLAR:
-    1. Listede gördüğün HER ARAÇ için JSON'da bir kayıt oluştur.
-    2. Eğer çıktı "çalıştırılmadı" veya "boş" diyorsa: Risk "BILGI", Özet "Araç çalıştırılmadı/Sonuç yok" yaz.
-    3. Eğer çıktı hata içeriyorsa (Error, Failed vb.): Risk "ARAÇ HATASI", Özet "Araç teknik hata verdi." yaz.
-    4. Başarılı araçları normal şekilde analiz et.
+    # Başlık ve Meta Bilgiler
+    story.append(Paragraph("Sızma Testi Raporu", title_style))
+    story.append(Paragraph("<b>HydraScan Kurumsal Güvenlik Platformu</b>", ParagraphStyle(name='C', alignment=1, fontSize=12, spaceAfter=30)))
     
-    ÇIKTI FORMATI (JSON):
-    {{
-        "domain": "{target_domain}",
-        "analizler": [
-            {{
-                "arac_adi": "Araç Adı",
-                "risk_seviyesi": "KRITIK | YÜKSEK | ORTA | DÜŞÜK | BILGI | ARAÇ HATASI",
-                "ozet": "Durum özeti",
-                "bulgular": ["Bulgu 1"],
-                "oneriler": ["Öneri 1"]
-            }}
-        ]
-    }}
-    
-    VERİLER:
-    {tool_outputs}
-    """
+    data = [
+        ["Tarama ID:", str(scan_id)],
+        ["Hedef:", target],
+        ["Tarih:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M")],
+        ["Durum:", "Tamamlandı"]
+    ]
+    t = Table(data, colWidths=[100, 300])
+    t.setStyle(TableStyle([('BACKGROUND', (0,0), (0,-1), colors.HexColor("#f1f5f9")), ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'), ('GRID', (0,0), (-1,-1), 0.5, colors.grey)]))
+    story.append(t)
+    story.append(Spacer(1, 30))
 
-    try:
-        if stream_callback: stream_callback("[*] Gemini 2.5 Pro analiz ediyor (Bekleyiniz)...\n")
-        
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-pro')
-        response = model.generate_content(prompt)
-        
-        raw_text = response.text.strip().replace("```json", "").replace("```", "")
-        report_json = json.loads(raw_text)
-        
-        json_path = os.path.join(scan_folder_path, "pentest_raporu.json")
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(report_json, f, ensure_ascii=False, indent=4)
-            
-        if stream_callback: stream_callback(f"[+] JSON Rapor oluşturuldu.\n")
-        return json_path
+    # Yönetici Özeti ve Grafik
+    story.append(Paragraph("Yönetici Özeti (Zafiyet Dağılımı)", h2_style))
+    story.append(RLImage(chart_data, width=400, height=250))
+    story.append(Spacer(1, 20))
 
-    except Exception as e:
-        if stream_callback: stream_callback(f"[-] Rapor Hatası: {e}\n")
-        print(f"Rapor Hatası: {e}")
-        return None
+    # Tespit Edilen Kritik Bulgular
+    story.append(Paragraph("Öne Çıkan Bulgular (Nuclei)", h2_style))
+    if findings:
+        for finding in findings[:15]: # İlk 15 bulguyu rapora ekle
+            story.append(Paragraph(f"• {finding}", normal_style))
+            story.append(Spacer(1, 5))
+    else:
+        story.append(Paragraph("Kritik veya Yüksek seviyeli doğrudan sömürülebilir zafiyet tespit edilemedi.", normal_style))
 
-# --- PDF ---
-class PDFReport(FPDF):
-    def __init__(self, target_domain):
-        super().__init__()
-        self.target_domain = target_domain
-        self.set_auto_page_break(auto=True, margin=15)
-        self.main_font = "Helvetica" 
-        
-        if check_and_download_font():
-            try:
-                self.add_font(FONT_NAME, "", FONT_PATH, uni=True)
-                self.main_font = FONT_NAME
-            except: pass
-
-    def safe_text(self, text):
-        if self.main_font == FONT_NAME: return str(text)
-        replacements = {"ı":"i", "İ":"I", "ğ":"g", "Ğ":"G", "ü":"u", "Ü":"U", "ş":"s", "Ş":"S", "ö":"o", "Ö":"O", "ç":"c", "Ç":"C"}
-        text = str(text)
-        for k,v in replacements.items(): text = text.replace(k,v)
-        return text.encode('latin-1', 'replace').decode('latin-1')
-
-    def header(self):
-        self.set_font(self.main_font, "", 10)
-        self.set_text_color(100)
-        self.cell(0, 10, self.safe_text(f"HydraScan - {self.target_domain}"), ln=True, align="R"); self.ln(5)
-
-    def chapter_title(self, label, risk):
-        colors = {
-            "KRITIK": (220,53,69), "YÜKSEK": (253,126,20), "ORTA": (255,193,7),
-            "ARAÇ HATASI": (128,128,128), "BILGI": (23,162,184)
-        }
-        r,g,b = (100,100,100)
-        for k, v in colors.items():
-            if k in risk.upper(): r,g,b = v; break
-        self.set_font(self.main_font, "", 14)
-        self.set_fill_color(r,g,b); self.set_text_color(255)
-        self.cell(0, 10, self.safe_text(f" {label} ({risk}) "), ln=True, fill=True); self.ln(4)
-        self.set_text_color(0)
-
-    def chapter_body(self, text):
-        self.set_font(self.main_font, "", 11)
-        self.multi_cell(180, 6, self.safe_text(text)); self.ln()
-
-def export_to_pdf(json_path, output_path=None):
-    if not os.path.exists(json_path): return None
-    try:
-        with open(json_path, 'r', encoding='utf-8') as f: data = json.load(f)
-        
-        pdf = PDFReport(data.get("domain", "Hedef"))
-        pdf.add_page()
-        pdf.set_font(pdf.main_font, "", 24)
-        pdf.cell(0, 20, pdf.safe_text("Sızma Testi Raporu"), ln=True, align="C"); pdf.ln(10)
-        
-        for a in data.get("analizler", []):
-            pdf.chapter_title(a.get("arac_adi", ""), a.get("risk_seviyesi", ""))
-            pdf.chapter_body(a.get("ozet", ""))
-            if a.get("bulgular"):
-                pdf.set_font(pdf.main_font, "", 10)
-                for b in a["bulgular"]:
-                    pdf.cell(5)
-                    pdf.multi_cell(175, 5, pdf.safe_text(f"- {b}"))
-                pdf.ln(5)
-                
-        if not output_path: output_path = json_path.replace(".json", ".pdf")
-        pdf.output(output_path)
-        return output_path
-    except: return None
+    doc.build(story)
+    return report_path
