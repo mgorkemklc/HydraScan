@@ -57,14 +57,15 @@ def run_web_tests(domain_input, output_dir, image_name, selected_tools=[], strea
         commands["sqlmap_ciktisi.txt"] = f"sqlmap -u \"{target_url}\" --batch --random-agent --level=1 --delay=2 --timeout=15"
 
     if "dalfox" in selected_tools:
-        commands["dalfox_ciktisi.txt"] = f"dalfox url \"{target_url}\" --format plain --timeout 10"
+        # Dalfox çok fazla parametre bulduğunda sonsuz döngüye girebilir. 
+        # Başına 'timeout 10m' ekleyerek maksimum 10 dakika çalışmasını, ardından zorla durarak raporlamaya geçmesini sağlıyoruz.
+        commands["dalfox_ciktisi.txt"] = f"timeout 10m dalfox url \"{target_url}\" --format plain --timeout 10"
 
     if "commix" in selected_tools:
-        # DÜZELTME: Hata veren --crawl parametresi silindi.
-        commands["commix_ciktisi.txt"] = f"commix -u {target_url} --batch --level=1 --disable-coloring"
+        # Commix'in de bazı durumlarda input bekleyerek takılmasını önlemek için 10 dakika sınır koyuyoruz.
+        commands["commix_ciktisi.txt"] = f"timeout 10m commix -u {target_url} --batch --level=1 --disable-coloring"
 
     if "wapiti" in selected_tools:
-        # Timeout koruması
         commands["wapiti_ciktisi.txt"] = f"timeout 10m wapiti -u {target_url} --flush-session -v 1 --max-scan-time 600 --depth 2 --scope folder"
     
     if "hydra" in selected_tools:

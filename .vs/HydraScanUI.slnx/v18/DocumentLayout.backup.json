@@ -1,7 +1,12 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\HydraScan\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{5C3CC8D3-D0FF-45A1-AA47-8F562615E342}|HydraScanUI\\HydraScanUI.csproj|c:\\users\\kilic\\onedrive\\desktop\\proje v3\\hydrascan\\hydrascan\\hydrascanui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{5C3CC8D3-D0FF-45A1-AA47-8F562615E342}|HydraScanUI\\HydraScanUI.csproj|solutionrelative:hydrascanui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,8 +14,21 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 0,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "MainWindow.xaml.cs",
+              "DocumentMoniker": "C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\HydraScan\\HydraScanUI\\MainWindow.xaml.cs",
+              "RelativeDocumentMoniker": "HydraScanUI\\MainWindow.xaml.cs",
+              "ToolTip": "C:\\Users\\kilic\\OneDrive\\Desktop\\proje v3\\HydraScan\\HydraScan\\HydraScanUI\\MainWindow.xaml.cs",
+              "RelativeToolTip": "HydraScanUI\\MainWindow.xaml.cs",
+              "ViewState": "AgIAADsBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-26T10:47:29.813Z",
+              "EditorCaption": ""
+            },
             {
               "$type": "Bookmark",
               "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"

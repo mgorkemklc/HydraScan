@@ -52,22 +52,24 @@ def get_stats():
 
 @app.get("/api/reports")
 def get_reports():
-    """Tüm tarama geçmişini listeler"""
+    """C# arayüzüne geçmiş taramaları tablo olarak gönderir"""
     try:
         user = database.login_check("superadmin", "admin123")
         scans = database.get_all_scans(user)
-        # Sadece Frontend'in ihtiyacı olan alanları dönüyoruz, ayrıca sqlite3.Row parse hatası olmasın diye dictionary'e çeviriyoruz
         reports = []
         for s in scans:
             reports.append({
-                "id": s["id"],
-                "target_full_domain": s["target_full_domain"],
-                "status": s["status"],
-                "created_at": str(s["created_at"])
+                "id": str(s['id']),
+                "target": s['domain'],
+                "type": s['scan_type'].upper(),
+                "date": str(s['created_at']).split('.')[0], # Saati düzgün formatla
+                "status": s['status']
             })
-        return {"reports": reports}
+        # En yeniler en üstte gözüksün diye listeyi ters çeviriyoruz
+        return {"reports": reports[::-1]}
     except Exception as e:
-        return {"error": str(e)}
+        print("Rapor çekme hatası:", e)
+        return {"reports": []}
 
 @app.get("/api/reports/{scan_id}")
 def get_report_detail(scan_id: int):

@@ -200,18 +200,45 @@ def main(page: ft.Page):
             on_click=lambda e: switch_view(view_name)
         )
 
-    sidebar = ft.Container(
-        width=260, bgcolor="#0b0f19", padding=20,
-        border=ft.Border(right=ft.BorderSide(1, "#1f2937")),
-        content=ft.Column([
-            ft.Text("🐉 HYDRASCAN", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-            ft.Container(height=30),
-            create_menu_btn("📊", "Genel Bakış", "Dashboard"),
-            create_menu_btn("⌖", "Yeni Tarama", "Scan"),
-            ft.Container(expand=True),
-            ft.Text(f"{current_user['username'].upper()}\n{current_user['role']}", color="#818cf8", weight=ft.FontWeight.BOLD)
-        ])
-    )
+    def create_sidebar(self):
+        sidebar = ctk.CTkFrame(self.container, fg_color=COLORS["bg_panel"], width=260, corner_radius=0)
+        sidebar.grid(row=0, column=0, sticky="nsew")
+        sidebar.grid_rowconfigure(10, weight=1)
+        ctk.CTkLabel(sidebar, text="HYDRASCAN", font=("Roboto", 22, "bold"), text_color="white").pack(pady=30, padx=20, anchor="w")
+        
+        self.nav_btns = {}
+        
+        # Kullanıcı rolünü al (Varsayılan: Müşteri)
+        user_role = self.current_user.get('role', 'Müşteri')
+
+        self.add_nav_btn(sidebar, "Genel Bakış", "Dashboard")
+
+        # Operasyonel modüller sadece Pentester ve üstü rollere gösterilir
+        if user_role in ['Superadmin', 'Admin', 'Pentester']:
+            ctk.CTkLabel(sidebar, text="TARAMA MODÜLLERİ", font=("Roboto", 11, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", padx=30, pady=(20, 10))
+            self.add_nav_btn(sidebar, "Web Uygulama", "WebScan")
+            self.add_nav_btn(sidebar, "İç Ağ (Network)", "NetworkScan")
+            self.add_nav_btn(sidebar, "Mobil Uygulama", "MobileScan")
+
+        ctk.CTkLabel(sidebar, text="SİSTEM", font=("Roboto", 11, "bold"), text_color=COLORS["text_gray"]).pack(anchor="w", padx=30, pady=(20, 10))
+        self.add_nav_btn(sidebar, "Raporlar & Loglar", "Reports")
+        
+        # Ayarlar sadece yönetici kadrosuna gösterilir
+        if user_role in ['Superadmin', 'Admin']:
+            self.add_nav_btn(sidebar, "Ayarlar", "Settings")
+
+        # Profil Alanı
+        profile = ctk.CTkFrame(sidebar, fg_color=COLORS["bg_main"], height=60)
+        profile.pack(side="bottom", fill="x")
+        initials = self.current_user['username'][:2].upper()
+        ctk.CTkLabel(profile, text=initials, width=40, height=40, bg_color=COLORS["accent"], text_color="white", font=("Arial", 16, "bold")).pack(side="left", padx=15, pady=10)
+        
+        info = ctk.CTkFrame(profile, fg_color="transparent")
+        info.pack(side="left")
+        ctk.CTkLabel(info, text=self.current_user['username'], font=("Roboto", 13, "bold"), text_color="white").pack(anchor="w")
+        ctk.CTkLabel(info, text=user_role, font=("Roboto", 10), text_color=COLORS["text_gray"]).pack(anchor="w")
+        
+        ctk.CTkButton(profile, text="Çıkış", width=30, fg_color="transparent", text_color=COLORS["danger"], font=("Roboto", 12), command=self.logout).pack(side="right", padx=10)
 
     page.add(ft.Row([sidebar, content_area], expand=True, spacing=0))
     refresh_stats()
