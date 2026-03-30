@@ -1,3 +1,5 @@
+import os
+import sys
 import customtkinter as ctk
 import database
 from ui.auth_view import AuthView
@@ -22,7 +24,14 @@ class HydraScanApp(ctk.CTk):
         self.container = ctk.CTkFrame(self, fg_color="transparent")
         self.container.pack(fill="both", expand=True)
         
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         self.show_auth_view()
+    
+    def on_closing(self):
+        print("[*] HydraScan kapatılıyor. Arka plan işlemleri sonlandırılıyor...")
+        self.destroy()
+        os._exit(0)  # Arkada takılı kalan tüm thread'leri temizler ve Python'u kapatır.
 
     def show_auth_view(self):
         for w in self.container.winfo_children(): w.destroy()
@@ -37,8 +46,11 @@ class HydraScanApp(ctk.CTk):
         self.init_main_interface()
 
     def init_main_interface(self):
-        for w in self.container.winfo_children(): w.destroy()
-        
+        # 1. Eski içerikleri gizle ve temizle (Boyanmayı engellemek için)
+        self.container.pack_forget() 
+        for w in self.container.winfo_children(): 
+            w.destroy()
+            
         self.container.grid_columnconfigure(1, weight=1)
         self.container.grid_rowconfigure(0, weight=1)
         
@@ -52,27 +64,23 @@ class HydraScanApp(ctk.CTk):
         self.main_area.grid_rowconfigure(0, weight=1)
         self.main_area.grid_columnconfigure(0, weight=1)
         
-        # Görünümlerin (Views) Yüklenmesi
+        # Görünümlerin Yüklenmesi
         self.frames = {}
-        
-        # 1. Dashboard
         self.frames["Dashboard"] = DashboardView(self.main_area, self)
-        # 2. Web Modülü
         self.frames["WebModule"] = WebModuleView(self.main_area, self)
-        # 3. İç Ağ Modülü
         self.frames["NetworkModule"] = NetworkModuleView(self.main_area, self)
-        # 4. Mobil Modülü
         self.frames["MobileModule"] = MobileModuleView(self.main_area, self)
-        # 5. API Modülü
         self.frames["ApiModule"] = ApiModuleView(self.main_area, self)
-        # 6. Raporlar Modülü (YENİ EKLENEN)
         self.frames["Reports"] = ReportsView(self.main_area, self)
         
-        # Ayarlar için geçici çerçeve
         self.frames["Settings"] = ctk.CTkFrame(self.main_area, fg_color="transparent")
         ctk.CTkLabel(self.frames["Settings"], text="Ayarlar Yapılandırılıyor...", font=("Roboto", 24)).pack(expand=True)
             
         self.show_view("Dashboard")
+        
+        # 2. Tüm arka plan çizimleri bittikten sonra container'ı tek seferde ekrana getir
+        self.update_idletasks()
+        self.container.pack(fill="both", expand=True)
 
     def show_view(self, view_name):
         for frame in self.frames.values():

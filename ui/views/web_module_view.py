@@ -1,3 +1,4 @@
+import queue
 import customtkinter as ctk
 import threading
 from tkinter import filedialog, messagebox
@@ -21,6 +22,21 @@ class WebModuleView(ctk.CTkFrame):
         self.controller = controller
         self.custom_wordlist_path = None
         self.build_ui()
+        self.log_queue = queue.Queue()
+        self.process_queue()
+
+    def process_queue(self):
+        # Arka plandan gelen logları güvenli şekilde arayüze basar
+        try:
+            while True:
+                msg = self.log_queue.get_nowait()
+                self.log_textbox.configure(state="normal")
+                self.log_textbox.insert("end", msg + "\n")
+                self.log_textbox.see("end")
+                self.log_textbox.configure(state="disabled")
+        except queue.Empty:
+            pass
+        self.after(100, self.process_queue) # Saniyede 10 kere kontrol et
 
     def build_ui(self):
         # Kaydırılabilir ana alan
@@ -143,18 +159,19 @@ class WebModuleView(ctk.CTkFrame):
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             output_dir = os.path.join(base_dir, "scan_outputs", f"scan_{scan_id}")
             database.set_scan_output_directory(scan_id, output_dir)
-            
+           
+            # 3. Gerçek tarama motorunu (Core) çalıştır
             self.append_log(f"[*] Çıktı Dizini: {output_dir}")
             database.update_scan_status(scan_id, "RUNNING")
 
-            # 3. Gerçek tarama motorunu (Core) çalıştır
-            # stream_callback olarak doğrudan self.append_log fonksiyonunu veriyoruz.
+            
+            # self.append_log YERİNE self.log_queue KULLANIYORUZ
             success = run_web_tests(
                 domain_input=target,
                 output_dir=output_dir,
                 image_name="pentest-araci-kali:v1.5",
                 selected_tools=selected_tools,
-                stream_callback=self.append_log,
+                stream_queue=self.log_queue, # BURASI DEĞİŞTİ
                 custom_wordlist=self.custom_wordlist_path
             )
 
