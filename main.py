@@ -1,15 +1,20 @@
 import os
 import sys
+import json # EKLENDİ
 import customtkinter as ctk
 import database
+from ui.theme import COLORS
 from ui.auth_view import AuthView
 from ui.sidebar import Sidebar
 from ui.views.dashboard_view import DashboardView
-from ui.views.web_module_view import WebModuleView  # Web modülü import edildi
+from ui.views.web_module_view import WebModuleView 
 from ui.views.network_module_view import NetworkModuleView
 from ui.views.mobile_module_view import MobileModuleView
 from ui.views.api_module_view import ApiModuleView
 from ui.views.reports_view import ReportsView
+from ui.views.settings_view import SettingsView # EKLENDİ
+
+CONFIG_FILE = os.path.join(os.path.expanduser("~"), ".hydrascan", "config.json")
 
 class HydraScanApp(ctk.CTk):
     def __init__(self):
@@ -18,7 +23,11 @@ class HydraScanApp(ctk.CTk):
         self.geometry("1400x900")
         ctk.set_appearance_mode("Dark")
         
+        # EKLENEN SATIR: Tüm arkaplanı koyu temamıza boyuyoruz
+        self.configure(fg_color=COLORS["bg_main"]) 
+        
         database.init_db()
+        self.load_config() # EKLENDİ:
         self.current_user = None
         
         self.container = ctk.CTkFrame(self, fg_color="transparent")
@@ -28,6 +37,22 @@ class HydraScanApp(ctk.CTk):
         
         self.show_auth_view()
     
+    # --- AYAR YÖNETİMİ FONKSİYONLARI (EKLENDİ) ---
+    def load_config(self):
+        self.config = {"api_key": "", "theme": "Dark", "webhook_url": ""} 
+        if not os.path.exists(os.path.dirname(CONFIG_FILE)):
+            os.makedirs(os.path.dirname(CONFIG_FILE))
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r') as f:
+                    self.config.update(json.load(f))
+            except: pass
+        ctk.set_appearance_mode(self.config.get("theme", "Dark"))
+
+    def save_config(self):
+        with open(CONFIG_FILE, 'w') as f: 
+            json.dump(self.config, f)
+
     def on_closing(self):
         print("[*] HydraScan kapatılıyor. Arka plan işlemleri sonlandırılıyor...")
         self.destroy()
@@ -46,7 +71,6 @@ class HydraScanApp(ctk.CTk):
         self.init_main_interface()
 
     def init_main_interface(self):
-        # 1. Eski içerikleri gizle ve temizle (Boyanmayı engellemek için)
         self.container.pack_forget() 
         for w in self.container.winfo_children(): 
             w.destroy()
@@ -54,11 +78,9 @@ class HydraScanApp(ctk.CTk):
         self.container.grid_columnconfigure(1, weight=1)
         self.container.grid_rowconfigure(0, weight=1)
         
-        # Sidebar Entegrasyonu
         self.sidebar = Sidebar(self.container, self, self.current_user)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         
-        # Ana Çalışma Alanı
         self.main_area = ctk.CTkFrame(self.container, fg_color="transparent")
         self.main_area.grid(row=0, column=1, sticky="nsew", padx=30, pady=30)
         self.main_area.grid_rowconfigure(0, weight=1)
@@ -73,15 +95,14 @@ class HydraScanApp(ctk.CTk):
         self.frames["ApiModule"] = ApiModuleView(self.main_area, self)
         self.frames["Reports"] = ReportsView(self.main_area, self)
         
-        self.frames["Settings"] = ctk.CTkFrame(self.main_area, fg_color="transparent")
-        ctk.CTkLabel(self.frames["Settings"], text="Ayarlar Yapılandırılıyor...", font=("Roboto", 24)).pack(expand=True)
+        # SETTINGS GÖRÜNÜMÜNÜ BAĞLADIK (EKLENDİ)
+        self.frames["Settings"] = SettingsView(self.main_area, self) 
             
         self.show_view("Dashboard")
         
-        # 2. Tüm arka plan çizimleri bittikten sonra container'ı tek seferde ekrana getir
         self.update_idletasks()
         self.container.pack(fill="both", expand=True)
-
+        
     def show_view(self, view_name):
         for frame in self.frames.values():
             frame.grid_forget()
