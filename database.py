@@ -16,6 +16,22 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Zafiyetler Tablosu (Re-test ve CVSS için)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS vulnerabilities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scan_id INTEGER,
+        tool_name TEXT,
+        vuln_name TEXT,
+        severity TEXT,
+        cvss_score REAL,
+        evidence TEXT,
+        remediation TEXT,
+        status TEXT DEFAULT 'Açık',
+        FOREIGN KEY(scan_id) REFERENCES scans(id)
+    );
+    """)
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS scans (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,5 +171,26 @@ def complete_scan(scan_id, report_path, status="COMPLETED"):
 def delete_scan_from_db(scan_id):
     conn = get_db_connection()
     conn.execute("DELETE FROM scans WHERE id = ?", (scan_id,))
+    conn.commit()
+    conn.close()
+
+def add_vulnerability(scan_id, tool_name, vuln_name, severity, cvss_score, evidence, remediation):
+    conn = get_db_connection()
+    conn.execute("""
+    INSERT INTO vulnerabilities (scan_id, tool_name, vuln_name, severity, cvss_score, evidence, remediation, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'Açık')
+    """, (scan_id, tool_name, vuln_name, severity, cvss_score, evidence, remediation))
+    conn.commit()
+    conn.close()
+
+def get_vulnerabilities(scan_id):
+    conn = get_db_connection()
+    rows = conn.execute("SELECT * FROM vulnerabilities WHERE scan_id = ?", (scan_id,)).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def update_vulnerability_status(vuln_id, status):
+    conn = get_db_connection()
+    conn.execute("UPDATE vulnerabilities SET status = ? WHERE id = ?", (status, vuln_id))
     conn.commit()
     conn.close()
