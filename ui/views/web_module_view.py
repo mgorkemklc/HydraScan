@@ -1,190 +1,129 @@
-import queue
 import customtkinter as ctk
-import threading
-from tkinter import filedialog, messagebox
-import time
+from tkinter import filedialog
 import os
-from datetime import datetime
-import database
+import threading
+import datetime
+from ui.theme import COLORS
+
+# Çekirdek modülleri bağlıyoruz
 from core.web_app_module import run_web_tests
-
-# İlerleyen aşamalarda core katmanını bağlayacağız
-# from core.web_app_module import run_web_tests
-
-COLORS = {
-    "bg_panel": "#1e293b", "bg_input": "#334155", "accent": "#38bdf8", 
-    "success": "#22c55e", "danger": "#ef4444", "text_gray": "#94a3b8"
-}
+from core.report_module import generate_report
 
 class WebModuleView(ctk.CTkFrame):
-    def __init__(self, parent, controller):
+    def __init__(self, parent, app_instance):
         super().__init__(parent, fg_color="transparent")
-        self.controller = controller
-        self.custom_wordlist_path = None
-        self.build_ui()
-        self.log_queue = queue.Queue()
-        self.process_queue()
-
-    def process_queue(self):
-        # Arka plandan gelen logları güvenli şekilde arayüze basar
-        try:
-            while True:
-                msg = self.log_queue.get_nowait()
-                self.log_textbox.configure(state="normal")
-                self.log_textbox.insert("end", msg + "\n")
-                self.log_textbox.see("end")
-                self.log_textbox.configure(state="disabled")
-        except queue.Empty:
-            pass
-        self.after(100, self.process_queue) # Saniyede 10 kere kontrol et
-
-    def build_ui(self):
-        # Kaydırılabilir ana alan
-        self.scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll.pack(fill="both", expand=True)
-
-        ctk.CTkLabel(self.scroll, text="🌐 Web Uygulama Sızma Testi", font=("Roboto", 24, "bold"), text_color="white").pack(anchor="w", pady=(0, 20))
-
-        # --- Hedef Belirleme Alanı ---
-        target_frame = ctk.CTkFrame(self.scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
-        target_frame.pack(fill="x", pady=10)
-        ctk.CTkLabel(target_frame, text="Hedef Tanımlama", font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=20, pady=(15, 5))
+        self.app = app_instance
         
-        self.entry_target = ctk.CTkEntry(target_frame, placeholder_text="örn: https://target-web.com", height=45, fg_color=COLORS["bg_input"], border_width=0)
-        self.entry_target.pack(fill="x", padx=20, pady=(0, 10))
+        scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        ctk.CTkLabel(scroll, text="Web Uygulama Taraması", font=("Roboto", 24, "bold"), text_color="white").pack(anchor="w", pady=(0, 20))
+        
+        # 1. Hedef Bilgileri
+        info_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
+        info_frame.pack(fill="x", pady=10)
+        ctk.CTkLabel(info_frame, text="Web Hedefi (Domain veya URL)", font=("Roboto", 14, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=20, pady=(10, 5))
+        
+        self.entry_web_domain = ctk.CTkEntry(info_frame, placeholder_text="örn: example.com", height=45, fg_color=COLORS["bg_input"], border_color=COLORS["border"], text_color="white")
+        self.entry_web_domain.pack(fill="x", padx=20, pady=(0, 20))
+        
+        wl_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        wl_frame.pack(fill="x", padx=20, pady=(0, 20))
+        ctk.CTkLabel(wl_frame, text="Özel Wordlist (Gobuster):", text_color="gray").pack(side="left")
+        self.lbl_wordlist_path = ctk.CTkLabel(wl_frame, text="Varsayılan", text_color="white", font=("Roboto", 12, "italic"))
+        self.lbl_wordlist_path.pack(side="left", padx=10)
+        ctk.CTkButton(wl_frame, text="Dosya Seç", width=80, height=25, fg_color=COLORS["bg_input"], hover_color=COLORS["border"], text_color="white", command=self.select_wordlist).pack(side="right")
+        self.selected_wordlist_path = None
 
-        # --- Özel Wordlist Seçimi ---
-        wl_frame = ctk.CTkFrame(target_frame, fg_color="transparent")
-        wl_frame.pack(fill="x", padx=20, pady=(0, 15))
-        self.btn_wordlist = ctk.CTkButton(wl_frame, text="Özel Wordlist Seç (Opsiyonel)", fg_color=COLORS["bg_input"], text_color="white", command=self.select_wordlist)
-        self.btn_wordlist.pack(side="left")
-        self.lbl_wordlist = ctk.CTkLabel(wl_frame, text="Seçilmedi (Varsayılan kullanılacak)", text_color=COLORS["text_gray"])
-        self.lbl_wordlist.pack(side="left", padx=10)
-
-        # --- Araç Seçimi Alanı ---
-        tools_frame = ctk.CTkFrame(self.scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
+        # 2. Araç Seçimleri
+        tools_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
         tools_frame.pack(fill="x", pady=10)
-        ctk.CTkLabel(tools_frame, text="Aktif Keşif ve Zafiyet Tarama Araçları", font=("Roboto", 16, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=20, pady=(15, 10))
-
-        # Eski ve yeni araçların birleştirilmiş listesi
-        self.tools_list = {
-            "Keşif & Fuzzing": ["gobuster", "ffuf", "dirsearch", "amass", "subfinder"],
-            "Zafiyet Tarama": ["nuclei", "nikto", "wapiti", "wpscan"],
-            "Exploitation (Sömürü)": ["sqlmap", "dalfox", "xsstrike", "commix"]
+        ctk.CTkLabel(tools_frame, text="Web Tarama Araçları", font=("Roboto", 14, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=20, pady=(10, 5))
+        
+        self.web_tools_vars = {
+            "whois": ctk.BooleanVar(value=True), "dig": ctk.BooleanVar(value=True), "subfinder": ctk.BooleanVar(value=True),
+            "nuclei": ctk.BooleanVar(value=True), "gobuster": ctk.BooleanVar(value=False), "sqlmap": ctk.BooleanVar(value=False)
         }
         
-        self.checkbox_vars = {}
-        
-        for category, tools in self.tools_list.items():
-            cat_frame = ctk.CTkFrame(tools_frame, fg_color="transparent")
-            cat_frame.pack(fill="x", padx=20, pady=5)
-            ctk.CTkLabel(cat_frame, text=category, font=("Roboto", 14, "bold"), text_color="white").pack(anchor="w")
-            
-            grid_frame = ctk.CTkFrame(cat_frame, fg_color="transparent")
-            grid_frame.pack(fill="x", pady=5)
-            
-            r, c = 0, 0
-            for tool in tools:
-                # Varsayılan olarak temel araçları seçili getir
-                default_state = True if tool in ["nuclei", "gobuster", "subfinder"] else False
-                var = ctk.BooleanVar(value=default_state)
-                self.checkbox_vars[tool] = var
-                cb = ctk.CTkCheckBox(grid_frame, text=tool.upper(), variable=var, text_color="white")
-                cb.grid(row=r, column=c, sticky="w", padx=10, pady=5)
-                c += 1
-                if c > 4:  # Her satırda 5 araç
-                    c = 0
-                    r += 1
+        grid_frm = ctk.CTkFrame(tools_frame, fg_color="transparent")
+        grid_frm.pack(fill="x", padx=20, pady=10)
+        r, c = 0, 0
+        for tool, var in self.web_tools_vars.items():
+            cb = ctk.CTkCheckBox(grid_frm, text=tool.title(), variable=var, text_color="white", fg_color=COLORS["accent"], border_color=COLORS["border"])
+            cb.grid(row=r, column=c, sticky="w", padx=10, pady=5)
+            c += 1
+            if c > 3: 
+                c = 0; r += 1
 
-        # --- Başlat Butonu ---
-        self.btn_start = ctk.CTkButton(self.scroll, text="Taramayı Başlat", height=50, font=("Roboto", 16, "bold"), fg_color=COLORS["success"], command=self.start_scan_thread)
-        self.btn_start.pack(fill="x", pady=20)
-
-        # --- Canlı Log Konsolu ---
-        log_frame = ctk.CTkFrame(self.scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
-        log_frame.pack(fill="x", pady=10)
-        ctk.CTkLabel(log_frame, text="İşlem Çıktısı (Log)", font=("Roboto", 14, "bold"), text_color=COLORS["accent"]).pack(anchor="w", padx=20, pady=(10, 0))
+        # 3. Canlı Terminal ve Takip Barı
+        self.progress_bar = ctk.CTkProgressBar(scroll, progress_color=COLORS["accent"])
+        self.progress_bar.pack(fill="x", pady=(20, 5))
+        self.progress_bar.set(0)
         
-        self.log_textbox = ctk.CTkTextbox(log_frame, height=200, fg_color=COLORS["bg_input"], text_color="#a3e635", font=("Consolas", 12))
-        self.log_textbox.pack(fill="x", padx=20, pady=15)
-        self.log_textbox.configure(state="disabled")
+        term_frame = ctk.CTkFrame(scroll, fg_color=COLORS["bg_panel"], corner_radius=10)
+        term_frame.pack(fill="x", pady=(5, 10))
+        ctk.CTkLabel(term_frame, text=">_ CANLI İŞLEM LOGLARI", font=("Consolas", 12, "bold"), text_color=COLORS["success"]).pack(anchor="w", padx=10, pady=(10, 0))
+        self.terminal_box = ctk.CTkTextbox(term_frame, height=150, fg_color=COLORS["log_bg"], text_color=COLORS["terminal_fg"], font=("Consolas", 11))
+        self.terminal_box.pack(fill="x", padx=10, pady=10)
+        self.terminal_box.insert("0.0", "[*] Sistem hazır. Hedef girip taramayı başlatın...\n")
+
+        # Başlat Butonu
+        self.btn_web_launch = ctk.CTkButton(scroll, text="WEB TARAMASINI BAŞLAT 🚀", height=50, font=("Roboto", 16, "bold"), fg_color=COLORS["success"], hover_color="#16a34a", command=self.launch_scan)
+        self.btn_web_launch.pack(fill="x", pady=20)
 
     def select_wordlist(self):
-        filepath = filedialog.askopenfilename(title="Wordlist Seç", filetypes=(("Text Files", "*.txt"), ("All Files", "*.*")))
-        if filepath:
-            self.custom_wordlist_path = filepath
-            self.lbl_wordlist.configure(text=filepath.split('/')[-1])
+        path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
+        if path:
+            self.selected_wordlist_path = path
+            self.lbl_wordlist_path.configure(text=os.path.basename(path), text_color="white")
 
-    def append_log(self, message):
-        self.log_textbox.configure(state="normal")
-        self.log_textbox.insert("end", message + "\n")
-        self.log_textbox.see("end")
-        self.log_textbox.configure(state="disabled")
-
-    def start_scan_thread(self):
-        target = self.entry_target.get().strip()
+    def launch_scan(self):
+        target = self.entry_web_domain.get().strip()
         if not target:
-            messagebox.showerror("Hata", "Lütfen bir hedef belirtin!")
+            self.terminal_box.insert("end", "[-] HATA: Lütfen geçerli bir Web Hedefi girin!\n")
             return
 
-        selected_tools = [tool for tool, var in self.checkbox_vars.items() if var.get()]
-        if not selected_tools:
-            messagebox.showerror("Hata", "En az bir araç seçmelisiniz!")
-            return
-
-        self.btn_start.configure(state="disabled", text="Tarama Devam Ediyor...", fg_color=COLORS["text_gray"])
-        self.log_textbox.configure(state="normal")
-        self.log_textbox.delete("1.0", "end")
-        self.log_textbox.configure(state="disabled")
+        self.btn_web_launch.configure(state="disabled", text="TARAMA VE ANALİZ DEVAM EDİYOR ⏳", fg_color=COLORS["warning"], text_color="black")
+        self.progress_bar.set(0.1)
+        self.terminal_box.insert("end", f"\n=====================================\n[*] YENİ WEB GÖREVİ: {target}\n")
         
-        self.append_log(f"[*] Hedef: {target}")
-        self.append_log(f"[*] Seçilen Araçlar: {', '.join(selected_tools)}")
-        self.append_log("[*] Tarama başlatılıyor...\n")
+        selected_tools = [tool for tool, var in self.web_tools_vars.items() if var.get()]
+        
+        scan_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = os.path.join(os.getcwd(), "scan_outputs", f"web_{scan_id}")
+        
+        # İşlemi Arka Plana Atıyoruz (Arayüz donmasın)
+        threading.Thread(target=self._run_scan_thread, args=(target, output_dir, selected_tools), daemon=True).start()
 
-        # İşlemi arayüzü dondurmamak için thread içinde başlatıyoruz
-        threading.Thread(target=self.run_scan, args=(target, selected_tools), daemon=True).start()
+    def _run_scan_thread(self, target, output_dir, selected_tools):
+        def stream_callback(msg):
+            self.terminal_box.insert("end", msg + "\n")
+            self.terminal_box.see("end")
 
-    def run_scan(self, target, selected_tools):
         try:
-            # 1. Veritabanında tarama kaydı oluştur
-            scan_data = {
-                "domain": target,
-                "internal_ip": None,
-                "apk_path": None
-            }
-            scan_id = database.create_scan(scan_data, self.controller.current_user.get('id', 1))
-            self.append_log(f"[*] Tarama ID: {scan_id} oluşturuldu.")
-
-            # 2. Çıktı klasörünü ayarla
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            output_dir = os.path.join(base_dir, "scan_outputs", f"scan_{scan_id}")
-            database.set_scan_output_directory(scan_id, output_dir)
-           
-            # 3. Gerçek tarama motorunu (Core) çalıştır
-            self.append_log(f"[*] Çıktı Dizini: {output_dir}")
-            database.update_scan_status(scan_id, "RUNNING")
-
+            self.progress_bar.set(0.3)
+            # 1. Aşama: Web Araçlarını Çalıştır
+            run_web_tests(target, output_dir, selected_tools, self.selected_wordlist_path, stream_callback)
+            self.progress_bar.set(0.7)
             
-            # self.append_log YERİNE self.log_queue KULLANIYORUZ
-            success = run_web_tests(
-                domain_input=target,
-                output_dir=output_dir,
-                image_name="pentest-araci-kali:v1.5",
-                selected_tools=selected_tools,
-                stream_queue=self.log_queue, # BURASI DEĞİŞTİ
-                custom_wordlist=self.custom_wordlist_path
-            )
+            # 2. Aşama: Yapay Zeka Raporlaması
+            stream_callback("\n[*] AI Analizi başlatılıyor...")
+            api_key = self.app.config.get("api_key", "")
+            
+            if not api_key:
+                stream_callback("[-] UYARI: Gemini API Key eksik. Rapor oluşturulamadı!")
+            else:
+                report_path = generate_report(output_dir, target, api_key)
+                if report_path:
+                    stream_callback(f"[+] ISO 27001 Raporu oluşturuldu: pentest_raporu.json")
+                else:
+                    stream_callback("[-] AI Raporu oluşturulurken bir hata oluştu veya API Limiti aşıldı (Kota Dolu).")
+            
+            self.progress_bar.set(1.0)
+            stream_callback("\n[+] GÖREV BAŞARIYLA TAMAMLANDI!")
 
-            # 4. İşlem bitince durumu güncelle
-            if success:
-                database.update_scan_status(scan_id, "COMPLETED")
-                self.append_log("\n[!] Tarama bitti. Raporlar sekmesinden sonuçları inceleyebilirsiniz.")
-                
         except Exception as e:
-            self.append_log(f"\n[!] KRİTİK HATA: {str(e)}")
-            try:
-                database.update_scan_status(scan_id, "FAILED")
-            except:
-                pass
+            stream_callback(f"\n[-] KRİTİK HATA: İşlem sırasında bir sorun oluştu: {str(e)}")
+            self.progress_bar.set(0)
         finally:
-            self.btn_start.configure(state="normal", text="Taramayı Başlat", fg_color=COLORS["success"])
+            self.btn_web_launch.configure(state="normal", text="WEB TARAMASINI BAŞLAT 🚀", fg_color=COLORS["success"], text_color="white")
