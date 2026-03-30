@@ -1,0 +1,31 @@
+# Visual Studio / C# WPF Geçici Dosyaları
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.slnx.sqlite
+
+# Python Geçici Dosyaları
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+
+# Veritabanı (Veritabanı yapısı kodla gider, verilerin kendisi gitmez)
+*.sqlite3
+db.sqlite3
+hydrascan_local.db
+
+# Tarama Çıktıları ve Raporlar (GitHub'ı şişirmemesi için)
+scan_outputs/
+*.pdf
+*.json
+
+# İşletim Sistemi Çöpleri
+.DS_Store
+Thumbs.db

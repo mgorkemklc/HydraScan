@@ -3,7 +3,9 @@ import os
 import datetime
 import hashlib
 
-DB_FILE = "hydrascan_local.db"
+# Veritabanı yolunu ana dizine sabitliyoruz
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "hydrascan_local.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
@@ -29,27 +31,34 @@ def init_db():
     );
     """)
 
+    # Rol tabanlı users tablosu (Varsayılan: Müşteri)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        role TEXT DEFAULT 'user',
+        role TEXT DEFAULT 'Müşteri',
         created_at DATETIME
     );
     """)
     
+    # Eski veritabanından geçiş yapılıyorsa 'role' sütununu ekle
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'Müşteri'")
+    except sqlite3.OperationalError:
+        pass 
+        
+    # Varsayılan Superadmin Hesabı
     try:
         admin_pass = hashlib.sha256("admin123".encode()).hexdigest()
         cursor.execute("INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)", 
-                       ("admin", admin_pass, "admin", datetime.datetime.now()))
+                       ("admin", admin_pass, "Superadmin", datetime.datetime.now()))
     except sqlite3.IntegrityError:
         pass
 
     conn.commit()
     conn.close()
 
-# --- KULLANICI İŞLEMLERİ ---
 def login_check(username, password):
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
@@ -57,15 +66,15 @@ def login_check(username, password):
     if user:
         input_hash = hashlib.sha256(password.encode()).hexdigest()
         if input_hash == user['password_hash']:
-            return user
+            return dict(user) # Arayüzde kolay kullanım için dict'e çeviriyoruz
     return None
 
-def register_user(username, password):
+def register_user(username, password, role="Müşteri"):
     conn = get_db_connection()
     pass_hash = hashlib.sha256(password.encode()).hexdigest()
     try:
-        conn.execute("INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)", 
-                     (username, pass_hash, datetime.datetime.now()))
+        conn.execute("INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)", 
+                     (username, pass_hash, role, datetime.datetime.now()))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -79,69 +88,35 @@ def user_exists(username):
     conn.close()
     return exists is not None
 
-# --- TARAMA İŞLEMLERİ ---
 def create_scan(scan_data, user_id=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     now = datetime.datetime.now()
-    
     cursor.execute("""
-    INSERT INTO scans (
-        user_id, target_full_domain, internal_ip_range, apk_file_s3_path, 
-        status, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        user_id,
-        scan_data['domain'],
-        scan_data.get('internal_ip'),
-        scan_data.get('apk_path'),
-        'PENDING',
-        now
-    ))
+    INSERT INTO scans (user_id, target_full_domain, internal_ip_range, apk_file_s3_path, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    """, (user_id, scan_data['domain'], scan_data.get('internal_ip'), scan_data.get('apk_path'), 'PENDING', now))
     new_id = cursor.lastrowid
     conn.commit()
     conn.close()
     return new_id
 
-# --- KRİTİK GÜNCELLEME BURADA ---
 def insert_imported_scan(user_id, domain, status, output_dir, report_path, created_at):
-    """
-    Dosya sisteminden bulunan taramaları veritabanına ekler veya günceller.
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # 1. Bu klasör yoluyla kayıtlı bir tarama var mı kontrol et
     check = cursor.execute("SELECT id, status FROM scans WHERE output_directory = ?", (output_dir,)).fetchone()
-    
     if check:
-        # Kayıt VARSA
         scan_id = check['id']
-        current_status = check['status']
-        
-        # Eğer veritabanında 'RUNNING' veya 'REPORTING' olarak kaldıysa, 
-        # ama biz elimizde bitmiş bir rapor dosyası (report_path) tutuyorsak:
-        # Durumu 'COMPLETED' olarak GÜNCELLE.
-        if current_status != "COMPLETED" and report_path and os.path.exists(report_path):
-            now = datetime.datetime.now()
-            cursor.execute("""
-                UPDATE scans 
-                SET status = 'COMPLETED', report_file_path = ?, completed_at = ? 
-                WHERE id = ?
-            """, (report_path, now, scan_id))
+        if check['status'] != "COMPLETED" and report_path and os.path.exists(report_path):
+            cursor.execute("UPDATE scans SET status = 'COMPLETED', report_file_path = ?, completed_at = ? WHERE id = ?", 
+                           (report_path, datetime.datetime.now(), scan_id))
             conn.commit()
-            print(f"[Database] Scan {scan_id} durumu 'COMPLETED' olarak güncellendi (Dosya bulundu).")
-            
         conn.close()
         return scan_id
-
-    # Kayıt YOKSA (Yeni ekle)
     cursor.execute("""
-    INSERT INTO scans (
-        user_id, target_full_domain, status, output_directory, report_file_path, created_at, completed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO scans (user_id, target_full_domain, status, output_directory, report_file_path, created_at, completed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (user_id, domain, status, output_dir, report_path, created_at, created_at))
-    
     new_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -149,10 +124,7 @@ def insert_imported_scan(user_id, domain, status, output_dir, report_path, creat
 
 def get_all_scans(user_id=None):
     conn = get_db_connection()
-    if user_id:
-        rows = conn.execute("SELECT * FROM scans WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
-    else:
-        rows = conn.execute("SELECT * FROM scans ORDER BY created_at DESC").fetchall()
+    rows = conn.execute("SELECT * FROM scans WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall() if user_id else conn.execute("SELECT * FROM scans ORDER BY created_at DESC").fetchall()
     conn.close()
     return rows
 
@@ -176,11 +148,7 @@ def set_scan_output_directory(scan_id, directory_path):
 
 def complete_scan(scan_id, report_path, status="COMPLETED"):
     conn = get_db_connection()
-    now = datetime.datetime.now()
-    conn.execute(
-        "UPDATE scans SET status = ?, report_file_path = ?, completed_at = ? WHERE id = ?",
-        (status, report_path, now, scan_id)
-    )
+    conn.execute("UPDATE scans SET status = ?, report_file_path = ?, completed_at = ? WHERE id = ?", (status, report_path, datetime.datetime.now(), scan_id))
     conn.commit()
     conn.close()
 
